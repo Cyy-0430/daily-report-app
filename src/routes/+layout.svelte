@@ -190,7 +190,7 @@
   }
   .toast {
     position: fixed;
-    bottom: 1.5rem;
+    top: 4.5rem;
     left: 50%;
     transform: translateX(-50%);
     display: flex;
@@ -218,7 +218,7 @@
   @keyframes toast-in {
     from {
       opacity: 0;
-      transform: translate(-50%, 10px);
+      transform: translate(-50%, -10px);
     }
     to {
       opacity: 1;

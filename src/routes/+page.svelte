@@ -307,6 +307,8 @@
     flex: 1;
     min-height: 0;
     overflow: auto;
+    display: flex;
+    flex-direction: column;
     padding: 1.05rem 1.15rem;
   }
   .head-actions {

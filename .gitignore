@@ -16,3 +16,4 @@ src-tauri/target
 .claude/
 .opencode/
 .trellis/
+.codegraph/
