@@ -1,0 +1,230 @@
+@import "tailwindcss";
+
+:root {
+  --paper: #f3eee3;
+  --paper-card: #fffdf7;
+  --ink: #1f1c18;
+  --ink-soft: #5d564c;
+  --ink-faint: #a59c8d;
+  --line: #e7dfd0;
+  --line-strong: #d3c8b4;
+  --accent: #9c3a26;
+  --accent-2: #b9492f;
+  --ok: #3d6b4e;
+
+  --sans: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Segoe UI",
+    system-ui, sans-serif;
+  --mono: ui-monospace, "JetBrains Mono", "Cascadia Code", "SF Mono", Menlo,
+    Consolas, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: var(--sans);
+  color: var(--ink);
+  background-color: var(--paper);
+  /* 极淡纸纹点阵，营造纸感而不喧宾夺主 */
+  background-image: radial-gradient(rgba(70, 58, 38, 0.04) 1px, transparent 1px);
+  background-size: 16px 16px;
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: "tnum" 1;
+}
+
+::selection {
+  background: var(--accent);
+  color: #fffdf7;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border-radius: 8px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--ink-faint);
+  background-clip: content-box;
+}
+
+/* ---------- buttons ---------- */
+.btn {
+  font-family: var(--sans);
+  font-size: 0.8rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  line-height: 1;
+  padding: 0.55rem 0.95rem;
+  border-radius: 7px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s, opacity 0.15s;
+  white-space: nowrap;
+}
+.btn:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
+.btn-primary {
+  background: var(--ink);
+  color: var(--paper-card);
+}
+.btn-primary:hover:not(:disabled) {
+  background: #000;
+}
+.btn-ghost {
+  color: var(--ink-soft);
+  border-color: var(--line-strong);
+  background: transparent;
+}
+.btn-ghost:hover:not(:disabled) {
+  background: var(--paper-card);
+  color: var(--ink);
+  border-color: var(--ink-soft);
+}
+.btn-accent {
+  background: var(--accent);
+  color: #fffdf7;
+}
+.btn-accent:hover:not(:disabled) {
+  background: var(--accent-2);
+}
+.btn-sm {
+  padding: 0.42rem 0.72rem;
+  font-size: 0.76rem;
+}
+
+/* ---------- panel (cards) ---------- */
+.panel {
+  background: var(--paper-card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.panel-head,
+.panel-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0 1rem;
+  min-height: 48px;
+  flex-shrink: 0;
+}
+.panel-head {
+  border-bottom: 1px solid var(--line);
+}
+.panel-foot {
+  border-top: 1px solid var(--line);
+}
+.panel-label {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+/* ---------- form fields ---------- */
+.field {
+  width: 100%;
+  background: var(--paper-card);
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  padding: 0.6rem 0.8rem;
+  font-size: 0.875rem;
+  font-family: var(--sans);
+  color: var(--ink);
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.field:focus {
+  border-color: var(--ink);
+  box-shadow: 0 0 0 3px rgba(31, 28, 24, 0.06);
+}
+.field::placeholder {
+  color: var(--ink-faint);
+}
+textarea.field {
+  resize: none;
+}
+.code {
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  line-height: 1.65;
+}
+
+/* ---------- markdown render ---------- */
+.md-body {
+  color: #38322a;
+  line-height: 1.78;
+  font-size: 0.92rem;
+}
+.md-body h1,
+.md-body h2,
+.md-body h3,
+.md-body h4 {
+  color: var(--ink);
+  font-weight: 650;
+  margin: 1rem 0 0.45rem;
+  line-height: 1.3;
+}
+.md-body h1 {
+  font-size: 1.3rem;
+}
+.md-body h2 {
+  font-size: 1.12rem;
+}
+.md-body h3 {
+  font-size: 1.02rem;
+}
+.md-body h3:first-child,
+.md-body p:first-child {
+  margin-top: 0;
+}
+.md-body p {
+  margin: 0.5rem 0;
+}
+.md-body ul,
+.md-body ol {
+  margin: 0.5rem 0;
+  padding-left: 1.3rem;
+}
+.md-body ul {
+  list-style: none;
+  padding-left: 0;
+}
+.md-body li {
+  margin: 0.25rem 0;
+}
+.md-body strong {
+  color: var(--ink);
+  font-weight: 650;
+}
+.md-body code {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  padding: 0.08rem 0.34rem;
+  border-radius: 4px;
+  font-family: var(--mono);
+  font-size: 0.82em;
+}
+.md-body hr {
+  border: none;
+  border-top: 1px solid var(--line);
+  margin: 1rem 0;
+}
