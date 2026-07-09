@@ -1,3 +1,4 @@
+mod collector;
 mod config;
 mod export;
 mod llm;
@@ -14,6 +15,7 @@ pub fn run() {
             config::save_config,
             llm::test_connection,
             llm::generate_report,
+            collector::collect_conversations,
             export::export_report,
             export::write_text_file,
         ])

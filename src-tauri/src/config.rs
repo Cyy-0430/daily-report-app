@@ -18,6 +18,27 @@ pub struct ApiConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct CollectConfig {
+    /// 启用的采集工具 id,MVP 仅 "claude-code"。
+    #[serde(default = "default_enabled_tools")]
+    pub enabled_tools: Vec<String>,
+}
+
+/// 旧配置缺失 enabled_tools 时回填默认值。
+fn default_enabled_tools() -> Vec<String> {
+    vec!["claude-code".to_string()]
+}
+
+impl Default for CollectConfig {
+    fn default() -> Self {
+        Self {
+            enabled_tools: default_enabled_tools(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct HistoryItem {
     pub id: String,
     pub date: String,
@@ -36,6 +57,8 @@ pub struct AppConfig {
     pub prompt_template: String,
     #[serde(default)]
     pub export_dir: String,
+    #[serde(default)]
+    pub collect_config: CollectConfig,
     #[serde(default)]
     pub history: Vec<HistoryItem>,
 }

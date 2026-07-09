@@ -8,6 +8,7 @@
   let api = $state<ApiConfig>({ baseUrl: "", apiKey: "", model: "" });
   let template = $state(DEFAULT_PROMPT_TEMPLATE);
   let exportDir = $state("");
+  let collectEnabled = $state(true);
   let showKey = $state(false);
   let testing = $state(false);
   let saving = $state(false);
@@ -17,6 +18,7 @@
     api = { ...c.apiConfig };
     template = c.promptTemplate || DEFAULT_PROMPT_TEMPLATE;
     exportDir = c.exportDir;
+    collectEnabled = (c.collectConfig?.enabledTools ?? []).includes("claude-code");
   });
 
   async function save() {
@@ -28,6 +30,9 @@
         apiConfig: { ...api },
         promptTemplate: template,
         exportDir,
+        collectConfig: {
+          enabledTools: collectEnabled ? ["claude-code"] : [],
+        },
       };
       await saveConfig(merged);
       config.set(merged);
@@ -132,6 +137,20 @@
       </div>
     </section>
 
+    <!-- D · 采集 -->
+    <section class="panel sec">
+      <div class="sec-title"><span class="num">D</span>采集工具</div>
+      <p class="sec-hint">
+        勾选日报生成时可自动读取的本地工具对话记录。模板变量 <code class="var"
+          >{"{{conversations}}"}</code
+        > 为采集到的当日对话（字段级过滤后，token 已大幅压缩）。
+      </p>
+      <label class="fld fld-check">
+        <input type="checkbox" bind:checked={collectEnabled} />
+        <span>Claude Code · ~/.claude/projects</span>
+      </label>
+    </section>
+
     <div class="page-foot">
       <button class="btn btn-primary save-btn" onclick={save} disabled={saving}>
         {saving ? "保存中…" : "保存设置"}
@@ -205,6 +224,18 @@
   .fld {
     display: block;
     margin-bottom: 0.9rem;
+  }
+  .fld-check {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.82rem;
+    color: var(--ink-soft);
+  }
+  .fld-check input {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--accent);
   }
   .fld > span {
     display: block;

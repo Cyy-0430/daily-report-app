@@ -16,10 +16,16 @@ pub enum StreamChunk {
     Error { message: String },
 }
 
-pub fn render_template(template: &str, input: &str, date_md: &str) -> String {
+pub fn render_template(
+    template: &str,
+    input: &str,
+    date_md: &str,
+    conversations: &str,
+) -> String {
     template
         .replace("{{date}}", date_md)
         .replace("{{input}}", input)
+        .replace("{{conversations}}", conversations)
 }
 
 /// 规范化 OpenAI 兼容接口的请求地址。
@@ -39,6 +45,7 @@ pub async fn generate_stream(
     api: &ApiConfig,
     template: &str,
     input: &str,
+    conversations: &str,
     on_event: &Channel<StreamChunk>,
 ) -> Result<String, String> {
     if api.base_url.is_empty() || api.api_key.is_empty() || api.model.is_empty() {
@@ -51,7 +58,7 @@ pub async fn generate_stream(
 
     let now = chrono::Local::now();
     let date_md = format!("{}.{}", now.month(), now.day());
-    let prompt = render_template(template, input, &date_md);
+    let prompt = render_template(template, input, &date_md, conversations);
 
     let endpoint = build_endpoint(&api.base_url);
     let body = serde_json::json!({
@@ -151,11 +158,18 @@ pub async fn test_connection(api: ApiConfig) -> Result<String, String> {
 pub async fn generate_report(
     app: AppHandle,
     input: String,
+    conversations: String,
     on_event: Channel<StreamChunk>,
 ) -> Result<(), String> {
     let cfg = load_config(app.clone())?;
-    let full =
-        generate_stream(&cfg.api_config, &cfg.prompt_template, &input, &on_event).await?;
+    let full = generate_stream(
+        &cfg.api_config,
+        &cfg.prompt_template,
+        &input,
+        &conversations,
+        &on_event,
+    )
+    .await?;
 
     let now = chrono::Local::now();
     let item = HistoryItem {
