@@ -39,3 +39,36 @@
 ### Next Steps
 
 - None - task complete
+
+
+## Session 2: 引入 SQLite 重构数据持久层
+
+**Date**: 2026-07-11
+**Task**: 引入 SQLite 重构数据持久层
+**Branch**: `main`
+
+### Summary
+
+数据持久层从 tauri-plugin-store 迁移至 SQLite(rusqlite bundled)。配置与历史解耦:AppConfig 移除 history 字段,历史改细粒度 list/add/remove_history 命令,generate_report 返回 HistoryItem。setup 钩子一次性幂等迁移旧 data.json(保留原文件回退)。新增后端 26 项 cargo test 与前端 9 项 vitest(jsdom),固化 backend/storage-spec.md,同步 CLAUDE.md。手动回归全部通过。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `be0f7b3` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
