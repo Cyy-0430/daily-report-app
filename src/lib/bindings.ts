@@ -9,6 +9,10 @@ export interface ApiConfig {
 export interface CollectConfig {
   /** 启用的采集工具 id,MVP 仅 "claude-code"。 */
   enabledTools: string[];
+  /** 仅采集(白名单)的工作目录,空 = 不限。子目录一并包含。 */
+  includePaths: string[];
+  /** 排除(黑名单)的工作目录,其下会话一律不采集。排除优先于仅采集。 */
+  excludePaths: string[];
 }
 
 export interface HistoryItem {
@@ -60,13 +64,25 @@ export interface CollectResult {
   skippedLines: number;
 }
 
+/** 路径过滤参数(传给采集命令,基于真实 cwd)。两者均空 = 不过滤。 */
+export interface PathFilter {
+  /** 仅采集(白名单)路径。 */
+  includePaths: string[];
+  /** 排除(黑名单)路径。 */
+  excludePaths: string[];
+}
+
 export function emptyConfig(): AppConfig {
   return {
     apiConfig: { baseUrl: "", apiKey: "", model: "" },
     promptTemplate: "",
     customDefaultTemplate: "",
     exportDir: "",
-    collectConfig: { enabledTools: ["claude-code"] },
+    collectConfig: {
+      enabledTools: ["claude-code"],
+      includePaths: [],
+      excludePaths: [],
+    },
     history: [],
   };
 }
@@ -78,9 +94,15 @@ export const exportReport = (content: string) => invoke<string | null>("export_r
 export const writeTextFile = (path: string, content: string) =>
   invoke<void>("write_text_file", { path, content });
 
-/** 采集指定日期、指定工具的本地对话记录。date 为 "YYYY-MM-DD",空串表示今天。 */
-export const collectConversations = (date: string, tools: string[]) =>
-  invoke<CollectResult>("collect_conversations", { date, tools });
+/**
+ * 采集指定日期、指定工具的本地对话记录,并按 filter 做路径过滤。
+ * date 为 "YYYY-MM-DD",空串表示今天;filter 传空数组等价于不过滤。
+ */
+export const collectConversations = (
+  date: string,
+  tools: string[],
+  filter: PathFilter,
+) => invoke<CollectResult>("collect_conversations", { date, tools, filter });
 
 /** 流式生成日报。onMessage 在每个分片/完成/错误时回调。 */
 export function generateReport(

@@ -10,6 +10,9 @@
   let customDefault = $state("");
   let exportDir = $state("");
   let collectEnabled = $state(true);
+  // 路径过滤:排除(黑名单)/ 仅采集(白名单),基于真实工作目录(cwd)。
+  let excludePaths = $state<string[]>([]);
+  let includePaths = $state<string[]>([]);
   let showKey = $state(false);
   let testing = $state(false);
   let saving = $state(false);
@@ -21,6 +24,8 @@
     customDefault = c.customDefaultTemplate || "";
     exportDir = c.exportDir;
     collectEnabled = (c.collectConfig?.enabledTools ?? []).includes("claude-code");
+    includePaths = [...(c.collectConfig?.includePaths ?? [])];
+    excludePaths = [...(c.collectConfig?.excludePaths ?? [])];
   });
 
   async function save() {
@@ -34,6 +39,8 @@
         exportDir,
         collectConfig: {
           enabledTools: collectEnabled ? ["claude-code"] : [],
+          includePaths: dedupePaths(includePaths),
+          excludePaths: dedupePaths(excludePaths),
         },
       };
       await saveConfig(merged);
@@ -44,6 +51,21 @@
     } finally {
       saving = false;
     }
+  }
+
+  /** 规整路径列表:去空白、丢空串、去重(保留顺序)。 */
+  function dedupePaths(paths: string[]): string[] {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const raw of paths) {
+      const s = raw.trim();
+      if (!s) continue;
+      const key = s.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(s);
+    }
+    return out;
   }
 
   async function setAsDefault() {
@@ -77,6 +99,34 @@
   async function pickDir() {
     const dir = await open({ directory: true, multiple: false });
     if (typeof dir === "string") exportDir = dir;
+  }
+
+  // ---- 路径过滤(排除 / 仅采集)----
+  function addExcludePath() {
+    excludePaths = [...excludePaths, ""];
+  }
+  function addIncludePath() {
+    includePaths = [...includePaths, ""];
+  }
+  function removeExcludePath(i: number) {
+    excludePaths = excludePaths.filter((_, idx) => idx !== i);
+  }
+  function removeIncludePath(i: number) {
+    includePaths = includePaths.filter((_, idx) => idx !== i);
+  }
+  async function pickExcludePath(i: number) {
+    const dir = await open({ directory: true, multiple: false });
+    if (typeof dir === "string" && dir) {
+      excludePaths[i] = dir;
+      excludePaths = [...excludePaths];
+    }
+  }
+  async function pickIncludePath(i: number) {
+    const dir = await open({ directory: true, multiple: false });
+    if (typeof dir === "string" && dir) {
+      includePaths[i] = dir;
+      includePaths = [...includePaths];
+    }
   }
 </script>
 
@@ -166,6 +216,57 @@
         <input type="checkbox" bind:checked={collectEnabled} />
         <span>Claude Code · ~/.claude/projects</span>
       </label>
+
+      <div class="sub-title">路径过滤</div>
+      <p class="sec-hint">
+        按会话的「真实工作目录」(cwd) 过滤:子目录会被一并包含/排除;<strong
+          >排除优先于仅采集</strong
+        >(敏感目录绝不会进日报)。两者均可留空(=不过滤);路径分隔符与大小写不影响匹配。
+      </p>
+
+      <div class="path-group">
+        <div class="path-group-label">排除路径（黑名单)</div>
+        {#each excludePaths as _, i (i)}
+          <div class="path-row">
+            <input
+              class="field"
+              bind:value={excludePaths[i]}
+              placeholder="例如 D:\\aaaa"
+            />
+            <button class="btn btn-ghost btn-sm" onclick={() => pickExcludePath(i)}>
+              选择…
+            </button>
+            <button class="btn btn-ghost btn-sm" onclick={() => removeExcludePath(i)}>
+              ✕
+            </button>
+          </div>
+        {/each}
+        <button class="btn btn-ghost btn-sm path-add" onclick={addExcludePath}>
+          + 添加排除路径
+        </button>
+      </div>
+
+      <div class="path-group">
+        <div class="path-group-label">仅采集路径（白名单)</div>
+        {#each includePaths as _, i (i)}
+          <div class="path-row">
+            <input
+              class="field"
+              bind:value={includePaths[i]}
+              placeholder="例如 D:\\work"
+            />
+            <button class="btn btn-ghost btn-sm" onclick={() => pickIncludePath(i)}>
+              选择…
+            </button>
+            <button class="btn btn-ghost btn-sm" onclick={() => removeIncludePath(i)}>
+              ✕
+            </button>
+          </div>
+        {/each}
+        <button class="btn btn-ghost btn-sm path-add" onclick={addIncludePath}>
+          + 添加仅采集路径
+        </button>
+      </div>
     </section>
 
     <div class="page-foot">
@@ -303,5 +404,33 @@
   }
   .save-btn {
     padding: 0.65rem 1.6rem;
+  }
+  .sub-title {
+    font-size: 0.9rem;
+    font-weight: 650;
+    margin: 1.1rem 0 0.2rem;
+    color: var(--ink);
+  }
+  .path-group {
+    margin-top: 0.6rem;
+  }
+  .path-group + .path-group {
+    margin-top: 0.9rem;
+  }
+  .path-group-label {
+    font-size: 0.78rem;
+    color: var(--ink-soft);
+    margin-bottom: 0.4rem;
+  }
+  .path-row {
+    display: flex;
+    gap: 0.4rem;
+    margin-bottom: 0.4rem;
+  }
+  .path-row .field {
+    flex: 1;
+  }
+  .path-add {
+    margin-top: 0.15rem;
   }
 </style>

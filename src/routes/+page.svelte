@@ -46,14 +46,17 @@
   }
 
   async function onCollect() {
-    const tools =
-      $config.collectConfig?.enabledTools?.length
-        ? $config.collectConfig.enabledTools
-        : ["claude-code"];
+    const cfg = $config.collectConfig;
+    const tools = cfg?.enabledTools?.length ? cfg.enabledTools : ["claude-code"];
+    // 路径过滤:从配置读取,缺省等价于空规则(不过滤,向后兼容)。
+    const filter = {
+      includePaths: cfg?.includePaths ?? [],
+      excludePaths: cfg?.excludePaths ?? [],
+    };
     collecting = true;
     showConversations = false;
     try {
-      const res = await collectConversations(collectDate, tools);
+      const res = await collectConversations(collectDate, tools, filter);
       collectResult = res;
       if (res.sessions.length === 0) {
         notify("err", `${collectDate} 无对话记录`);
@@ -111,9 +114,8 @@
         notify("ok", `已导出：${saved}`);
         return;
       }
-      const date = new Date().toISOString().slice(0, 10);
       const path = await save({
-        defaultPath: `${date}.md`,
+        defaultPath: `${collectDate}.md`,
         filters: [{ name: "Markdown", extensions: ["md"] }],
       });
       if (!path) return;

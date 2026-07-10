@@ -9,7 +9,8 @@
 //! cast 原始 jsonl 字段。
 
 use chrono::{Local, NaiveDate};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 
 pub mod claude_code;
 pub use claude_code::ClaudeCodeCollector;
@@ -65,12 +66,55 @@ pub struct CollectResult {
     pub skipped_lines: usize,
 }
 
+/// 路径过滤规则(已规范化的路径)。
+///
+/// - `includes`(白名单)非空:仅采集落在任一路径下(含自身、含子目录)的会话;
+/// - `excludes`(黑名单):其下会话一律剔除;**排除优先于仅采集**。
+/// 两者均为空时不过滤(默认行为)。
+#[derive(Debug, Clone, Default)]
+pub struct PathFilter {
+    pub includes: Vec<PathBuf>,
+    pub excludes: Vec<PathBuf>,
+}
+
+/// 命令层接收的路径过滤参数(原始字符串,尚未规范化)。
+#[derive(Debug, Clone, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct PathFilterParam {
+    #[serde(default)]
+    pub include_paths: Vec<String>,
+    #[serde(default)]
+    pub exclude_paths: Vec<String>,
+}
+
+impl PathFilterParam {
+    /// 规范化为 [`PathFilter`]:去空白/空串,统一分隔符并小写。
+    pub fn normalize(&self) -> PathFilter {
+        let to_paths = |xs: &[String]| {
+            xs.iter()
+                .map(|s| s.trim())
+                .filter(|s| !s.is_empty())
+                .map(claude_code::norm)
+                .collect::<Vec<_>>()
+        };
+        PathFilter {
+            includes: to_paths(&self.include_paths),
+            excludes: to_paths(&self.exclude_paths),
+        }
+    }
+}
+
 /// 采集器抽象。新增工具实现本 trait,并在 [`collect_conversations`] 路由中注册。
 pub trait Collector: Send + Sync {
     fn id(&self) -> &'static str;
     fn display_name(&self) -> &'static str;
-    /// 采集指定本地日期的对话。返回 (会话摘要, 跳过行数)。
-    fn collect(&self, date: NaiveDate) -> Result<(Vec<SessionDigest>, usize), String>;
+    /// 采集指定本地日期的对话,并按 `filter` 做真实 cwd 路径过滤。
+    /// 返回 (会话摘要, 跳过行数)。
+    fn collect(
+        &self,
+        date: NaiveDate,
+        filter: &PathFilter,
+    ) -> Result<(Vec<SessionDigest>, usize), String>;
 }
 
 /// token 估算(经验值:中文 ~1.2 tok/字,ASCII ~0.25 tok/char)。仅作预览参考,不用于计费。
@@ -149,14 +193,18 @@ fn all_collectors() -> Vec<Box<dyn Collector>> {
 }
 
 /// 采集(同步阻塞 IO),由 command 在 spawn_blocking 中调用。
-fn collect_blocking(date: &str, tools: &[String]) -> Result<CollectResult, String> {
+fn collect_blocking(
+    date: &str,
+    tools: &[String],
+    filter: &PathFilter,
+) -> Result<CollectResult, String> {
     let target = parse_target_date(date);
     let mut result = CollectResult::default();
     for c in all_collectors() {
         if !tools.iter().any(|t| t == c.id()) {
             continue; // 未勾选的工具跳过
         }
-        let (sessions, skipped) = c.collect(target)?;
+        let (sessions, skipped) = c.collect(target, filter)?;
         result.skipped_lines += skipped;
         result.sessions.extend(sessions);
     }
@@ -172,14 +220,17 @@ fn collect_blocking(date: &str, tools: &[String]) -> Result<CollectResult, Strin
 ///
 /// - `date`:本地时区的某一天,格式 "YYYY-MM-DD";空串表示今天。
 /// - `tools`:工具 id 列表,MVP 仅支持 "claude-code"。
+/// - `filter`:路径过滤(include/exclude,基于真实 cwd);传空数组等价于不过滤。
 #[tauri::command]
 pub async fn collect_conversations(
     date: String,
     tools: Vec<String>,
+    filter: PathFilterParam,
 ) -> Result<CollectResult, String> {
+    let filter = filter.normalize();
     let date = date.clone();
     let tools = tools.clone();
-    tokio::task::spawn_blocking(move || collect_blocking(&date, &tools))
+    tokio::task::spawn_blocking(move || collect_blocking(&date, &tools, &filter))
         .await
         .map_err(|e| format!("采集任务异常: {e}"))?
 }

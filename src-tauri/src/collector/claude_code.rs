@@ -7,7 +7,7 @@
 //! - **字段过滤(策略①)**:保留 user 文本 + assistant 文本 + tool_use 的
 //!   name+关键参数;丢弃 tool_result 全文与 thinking。
 
-use super::{session_tokens, Collector, ConversationLine, Role, SessionDigest};
+use super::{session_tokens, Collector, ConversationLine, PathFilter, Role, SessionDigest};
 use chrono::{DateTime, Local, NaiveDate};
 use serde_json::Value;
 use std::fs;
@@ -23,7 +23,11 @@ impl Collector for ClaudeCodeCollector {
         "Claude Code"
     }
 
-    fn collect(&self, date: NaiveDate) -> Result<(Vec<SessionDigest>, usize), String> {
+    fn collect(
+        &self,
+        date: NaiveDate,
+        filter: &PathFilter,
+    ) -> Result<(Vec<SessionDigest>, usize), String> {
         let base = home_projects_dir()?;
         let mut digests = Vec::new();
         let mut skipped = 0usize;
@@ -56,7 +60,12 @@ impl Collector for ClaudeCodeCollector {
                 skipped += sk;
                 if let Some(d) = digest_opt {
                     if !d.lines.is_empty() {
-                        digests.push(d);
+                        // 路径过滤(基于真实 cwd,组件级前缀匹配):push 前判定,保持
+                        // parse_session 单一职责。
+                        let cwd_path = d.cwd.as_deref().map(Path::new);
+                        if session_allowed(cwd_path, &filter.includes, &filter.excludes) {
+                            digests.push(d);
+                        }
                     }
                 }
             }
@@ -71,6 +80,39 @@ impl Collector for ClaudeCodeCollector {
 fn home_projects_dir() -> Result<PathBuf, String> {
     let home = dirs::home_dir().ok_or_else(|| "无法定位用户主目录".to_string())?;
     Ok(home.join(".claude").join("projects"))
+}
+
+/// 路径规范化:去首尾空白 → 整体小写(解决 Windows 大小写)→ 统一分隔符为
+/// `\`(解决 `\` vs `/`)→ 去尾部分隔符。规范化后用 [`Path::starts_with`] 做
+/// 组件级前缀匹配,天然规避 `work` 误命中 `workplace` 这类字符串前缀歧义。
+pub(super) fn norm(p: &str) -> PathBuf {
+    let lower = p.trim().to_lowercase().replace('/', "\\");
+    PathBuf::from(lower.trim_end_matches('\\'))
+}
+
+/// 判定单个 session 是否被允许采集(**排除优先**)。
+///
+/// - 命中任一 exclude(黑名单)→ 拒绝(保证敏感目录绝不进日报);
+/// - includes(白名单)非空时,cwd 必须落在某条 include 下(含自身),否则拒绝;
+/// - cwd 为 `None`:includes 非空 → 拒绝(无法证实白名单);否则放行。
+///
+/// 匹配基于规范化后的**组件级**前缀:子目录继承父级规则。
+fn session_allowed(cwd: Option<&Path>, includes: &[PathBuf], excludes: &[PathBuf]) -> bool {
+    let Some(cwd) = cwd else {
+        // cwd 未知:无法匹配黑名单;白名单非空则一律拒绝,否则放行。
+        return includes.is_empty();
+    };
+    let nc = norm(&cwd.to_string_lossy());
+    // 排除优先:命中任一黑名单 → 拒绝。
+    if excludes.iter().any(|ex| nc.starts_with(ex)) {
+        return false;
+    }
+    // 白名单非空:必须落在某条 include 下(含自身)。
+    if includes.is_empty() {
+        true
+    } else {
+        includes.iter().any(|inc| nc.starts_with(inc))
+    }
 }
 
 /// 解析单个 jsonl 文件为 session(仅保留目标日期的行)。
@@ -303,5 +345,110 @@ mod tests {
         assert!(matches!(role, Role::Assistant));
         assert_eq!(text, "好的，我先看一下");
         assert_eq!(tools, vec!["Read: src/a.ts"]);
+    }
+
+    // ---- 路径过滤 session_allowed / norm ----
+
+    fn np(s: &str) -> PathBuf {
+        norm(s)
+    }
+
+    /// work 不得误命中 workplace(组件级前缀,边界正确)。
+    #[test]
+    fn allowed_work_not_workplace() {
+        let inc = vec![np("D:\\work")];
+        assert!(session_allowed(Some(Path::new("D:\\work")), &inc, &[]));
+        assert!(!session_allowed(Some(Path::new("D:\\workplace")), &inc, &[]));
+        assert!(!session_allowed(Some(Path::new("D:\\work2")), &inc, &[]));
+    }
+
+    /// 子目录继承:include=work 命中 work\sub。
+    #[test]
+    fn allowed_subdir_included() {
+        let inc = vec![np("D:\\work")];
+        assert!(session_allowed(Some(Path::new("D:\\work\\sub")), &inc, &[]));
+        assert!(session_allowed(
+            Some(Path::new("D:\\work\\deep\\nest")),
+            &inc,
+            &[]
+        ));
+    }
+
+    /// 排除优先:在白名单范围内挖掉黑名单。
+    /// include=[D:\work]、exclude=[D:\work\secret]
+    ///  → work\app 采集、work\secret 排除、personal 排除(不在白名单)。
+    #[test]
+    fn allowed_exclude_overrides_include() {
+        let inc = vec![np("D:\\work")];
+        let exc = vec![np("D:\\work\\secret")];
+        assert!(session_allowed(Some(Path::new("D:\\work\\app")), &inc, &exc));
+        assert!(!session_allowed(Some(Path::new("D:\\work\\secret")), &inc, &exc));
+        assert!(!session_allowed(
+            Some(Path::new("D:\\work\\secret\\deep")),
+            &inc,
+            &exc
+        ));
+        assert!(!session_allowed(Some(Path::new("D:\\personal")), &inc, &exc));
+    }
+
+    /// 空规则 = 不过滤(默认行为,所有路径放行)。
+    #[test]
+    fn allowed_empty_rules_pass_all() {
+        assert!(session_allowed(Some(Path::new("D:\\anywhere")), &[], &[]));
+    }
+
+    /// 排除命中:整棵子树被排除,其余放行。
+    #[test]
+    fn allowed_exclude_subtree() {
+        let exc = vec![np("D:\\aaaa")];
+        assert!(!session_allowed(Some(Path::new("D:\\aaaa")), &[], &exc));
+        assert!(!session_allowed(Some(Path::new("D:\\aaaa\\sub")), &[], &exc));
+        assert!(session_allowed(Some(Path::new("D:\\bbbb")), &[], &exc));
+    }
+
+    /// 分隔符混用:D:\work 与 D:/work 等价;两边都规范化。
+    #[test]
+    fn allowed_separator_invariant() {
+        let inc = vec![np("D:/work")]; // 白名单用 `/` 写入
+        assert!(session_allowed(Some(Path::new("D:\\work")), &inc, &[]));
+        assert!(session_allowed(Some(Path::new("D:\\work\\sub")), &inc, &[]));
+        // 反过来:白名单用 `\`,cwd 用 `/`
+        let inc2 = vec![np("D:\\work")];
+        assert!(session_allowed(Some(Path::new("D:/work/sub")), &inc2, &[]));
+    }
+
+    /// Windows 大小写不敏感。
+    #[test]
+    fn allowed_case_insensitive() {
+        let inc = vec![np("D:\\Work")];
+        assert!(session_allowed(Some(Path::new("d:\\WORK")), &inc, &[]));
+        assert!(session_allowed(Some(Path::new("D:\\work\\SUB")), &inc, &[]));
+        // 黑名单大小写也无关
+        let exc = vec![np("D:\\Secret")];
+        assert!(!session_allowed(Some(Path::new("d:\\secret\\x")), &[], &exc));
+    }
+
+    /// cwd 为 None:白名单非空→拒绝,否则放行。
+    #[test]
+    fn allowed_cwd_none() {
+        assert!(session_allowed(None, &[], &[]));
+        assert!(!session_allowed(None, &vec![np("D:\\work")], &[]));
+    }
+
+    /// 多条 include:命中任一即可;都不命中则拒。
+    #[test]
+    fn allowed_multiple_includes() {
+        let inc = vec![np("D:\\work"), np("E:\\proj")];
+        assert!(session_allowed(Some(Path::new("D:\\work\\a")), &inc, &[]));
+        assert!(session_allowed(Some(Path::new("E:\\proj")), &inc, &[]));
+        assert!(!session_allowed(Some(Path::new("F:\\other")), &inc, &[]));
+    }
+
+    /// norm:去空白、小写、统一分隔符、去尾部分隔符。
+    #[test]
+    fn norm_strips_and_unifies() {
+        assert_eq!(norm("  D:/Work/  "), PathBuf::from("d:\\work"));
+        assert_eq!(norm("D:\\WORK\\"), PathBuf::from("d:\\work"));
+        assert_eq!(norm("D:/a/b/c"), PathBuf::from("d:\\a\\b\\c"));
     }
 }

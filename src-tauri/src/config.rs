@@ -22,6 +22,12 @@ pub struct CollectConfig {
     /// 启用的采集工具 id,MVP 仅 "claude-code"。
     #[serde(default = "default_enabled_tools")]
     pub enabled_tools: Vec<String>,
+    /// 仅采集(白名单)的工作目录,空 = 不限。其下子目录一并包含。
+    #[serde(default)]
+    pub include_paths: Vec<String>,
+    /// 排除(黑名单)的工作目录,其下会话一律不采集。排除优先于仅采集。
+    #[serde(default)]
+    pub exclude_paths: Vec<String>,
 }
 
 /// 旧配置缺失 enabled_tools 时回填默认值。
@@ -33,6 +39,8 @@ impl Default for CollectConfig {
     fn default() -> Self {
         Self {
             enabled_tools: default_enabled_tools(),
+            include_paths: Vec::new(),
+            exclude_paths: Vec::new(),
         }
     }
 }
