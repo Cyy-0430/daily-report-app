@@ -130,21 +130,33 @@
   <section class="panel">
     <div class="panel-head">
       <span class="panel-label">01 — 今日要点</span>
-      <span class="meta">{input.length} 字</span>
-    </div>
-
-    <div class="collect-bar">
-      <span class="collect-src">来源：Claude Code</span>
       <input
         class="collect-date"
         type="date"
         bind:value={collectDate}
         disabled={busy || collecting}
       />
-      <button class="btn btn-ghost btn-sm" onclick={onCollect} disabled={busy || collecting}>
-        {collecting ? "采集中…" : "采集对话"}
+      <button
+        class="btn btn-ghost btn-sm"
+        onclick={() => {
+          input = "";
+          output = "";
+          collectResult = null;
+          showConversations = false;
+        }}
+        disabled={busy}
+      >
+        清空
       </button>
-      {#if collectResult}
+    </div>
+
+    <div class="collect-bar">
+      <span class="collect-src">来源：Claude Code</span>
+      {#if !collectResult || collectResult.sessions.length === 0}
+        <button class="btn btn-ghost btn-sm" onclick={onCollect} disabled={busy || collecting}>
+          {collecting ? "采集中…" : "采集对话"}
+        </button>
+      {:else if collectResult}
         <span class="meta collect-meta">
           {#if collectResult.sessions.length}
             {collectResult.sessions.length} 会话 · 约 {collectResult.estTokens} token
@@ -172,16 +184,7 @@
       class="editor-textarea"
     ></textarea>
     <div class="panel-foot">
-      <button
-        class="btn btn-ghost"
-        onclick={() => {
-          input = "";
-          output = "";
-        }}
-        disabled={busy}
-      >
-        清空
-      </button>
+      <span class="meta">{input.length} 字</span>
       <button class="btn btn-primary" onclick={onGenerate} disabled={busy}>
         {busy ? "生成中…" : "生成日报"}<span class="arrow">→</span>
       </button>
@@ -242,6 +245,14 @@
     min-height: 0;
     display: flex;
     flex-direction: column;
+  }
+  .panel:first-child .panel-head {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+  }
+  .panel:first-child .panel-head .collect-date {
+    margin-left: auto;
   }
   .collect-bar {
     display: flex;
