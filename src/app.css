@@ -204,6 +204,9 @@ textarea.field {
   margin: 0.5rem 0;
   padding-left: 1.3rem;
 }
+.md-body ol {
+  list-style-type: decimal;
+}
 .md-body ul {
   list-style: none;
   padding-left: 0;
