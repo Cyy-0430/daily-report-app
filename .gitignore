@@ -15,5 +15,10 @@ src-tauri/target
 # AI workflow tooling (kept local, not part of the app)
 .claude/
 .opencode/
-.trellis/
 .codegraph/
+
+# Trellis: 入 git 团队共享(spec/tasks/workflow/scripts 等);个人/运行时数据忽略。
+# .trellis/.gitignore 已处理大部分,这里对身份与运行时再加一层保险。
+.trellis/.developer
+.trellis/.current-task
+.trellis/.runtime/
