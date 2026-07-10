@@ -213,7 +213,8 @@
       {#if mode === "edit"}
         <textarea bind:value={output} class="editor-textarea is-code"></textarea>
       {:else if output}
-        <article class="md-body">{@html html}</article>
+        <!-- svelte-ignore a11y_no_noninteractive_element_interactions a11y_click_events_have_key_events -->
+        <article class="md-body" onclick={onCopy} onkeydown={(e) => (e.key === "Enter" || e.key === " ") && onCopy()} title="点击复制全部内容">{@html html}</article>
       {:else}
         <div class="editor-empty">
           <span class="empty-mark">▍</span>
@@ -322,6 +323,9 @@
   }
   .arrow {
     margin-left: 0.35rem;
+  }
+  .md-body {
+    cursor: pointer;
   }
   .editor-empty {
     height: 100%;

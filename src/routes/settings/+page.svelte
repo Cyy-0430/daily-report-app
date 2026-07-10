@@ -7,6 +7,7 @@
 
   let api = $state<ApiConfig>({ baseUrl: "", apiKey: "", model: "" });
   let template = $state(DEFAULT_PROMPT_TEMPLATE);
+  let customDefault = $state("");
   let exportDir = $state("");
   let collectEnabled = $state(true);
   let showKey = $state(false);
@@ -17,6 +18,7 @@
     const c = await loadConfig();
     api = { ...c.apiConfig };
     template = c.promptTemplate || DEFAULT_PROMPT_TEMPLATE;
+    customDefault = c.customDefaultTemplate || "";
     exportDir = c.exportDir;
     collectEnabled = (c.collectConfig?.enabledTools ?? []).includes("claude-code");
   });
@@ -44,6 +46,22 @@
     }
   }
 
+  async function setAsDefault() {
+    try {
+      const cur = await loadConfig();
+      cur.customDefaultTemplate = template;
+      await saveConfig(cur);
+      customDefault = template;
+      notify("ok", "已设为默认");
+    } catch (e) {
+      notify("err", String(e));
+    }
+  }
+
+  function resetTemplate() {
+    template = customDefault || DEFAULT_PROMPT_TEMPLATE;
+  }
+
   async function test() {
     testing = true;
     try {
@@ -59,10 +77,6 @@
   async function pickDir() {
     const dir = await open({ directory: true, multiple: false });
     if (typeof dir === "string") exportDir = dir;
-  }
-
-  function resetTemplate() {
-    template = DEFAULT_PROMPT_TEMPLATE;
   }
 </script>
 
@@ -112,7 +126,10 @@
     <section class="panel sec">
       <div class="sec-title-row">
         <div class="sec-title"><span class="num">B</span>生成提示词模板</div>
-        <button class="btn btn-ghost btn-sm" onclick={resetTemplate}>恢复默认</button>
+        <div class="sec-actions-row">
+          <button class="btn btn-ghost btn-sm" onclick={setAsDefault}>设为默认</button>
+          <button class="btn btn-ghost btn-sm" onclick={resetTemplate}>恢复默认</button>
+        </div>
       </div>
       <p class="sec-hint">
         变量：<code class="var">{"{{date}}"}</code>（今天，如 7.9）、<code class="var"
@@ -192,6 +209,10 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+  }
+  .sec-actions-row {
+    display: flex;
+    gap: 0.4rem;
   }
   .sec-title {
     font-size: 0.98rem;

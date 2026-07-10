@@ -23,6 +23,7 @@ export interface HistoryItem {
 export interface AppConfig {
   apiConfig: ApiConfig;
   promptTemplate: string;
+  customDefaultTemplate: string;
   exportDir: string;
   collectConfig: CollectConfig;
   history: HistoryItem[];
@@ -63,6 +64,7 @@ export function emptyConfig(): AppConfig {
   return {
     apiConfig: { baseUrl: "", apiKey: "", model: "" },
     promptTemplate: "",
+    customDefaultTemplate: "",
     exportDir: "",
     collectConfig: { enabledTools: ["claude-code"] },
     history: [],

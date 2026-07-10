@@ -56,6 +56,8 @@ pub struct AppConfig {
     #[serde(default)]
     pub prompt_template: String,
     #[serde(default)]
+    pub custom_default_template: String,
+    #[serde(default)]
     pub export_dir: String,
     #[serde(default)]
     pub collect_config: CollectConfig,
