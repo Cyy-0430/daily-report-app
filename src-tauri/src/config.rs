@@ -1,9 +1,7 @@
 use serde::{Deserialize, Serialize};
-use tauri::AppHandle;
-use tauri_plugin_store::StoreExt;
+use tauri::{AppHandle, Manager};
 
-const STORE_FILE: &str = "data.json";
-const CONFIG_KEY: &str = "config";
+use crate::db::{get_config, set_config, DbState};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
@@ -56,6 +54,7 @@ pub struct HistoryItem {
     pub created_at: i64,
 }
 
+/// 应用配置(历史记录已独立存于 SQLite `history` 表,见 `db` 模块)。
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct AppConfig {
@@ -69,25 +68,18 @@ pub struct AppConfig {
     pub export_dir: String,
     #[serde(default)]
     pub collect_config: CollectConfig,
-    #[serde(default)]
-    pub history: Vec<HistoryItem>,
 }
 
 #[tauri::command]
 pub fn load_config(app: AppHandle) -> Result<AppConfig, String> {
-    let store = app.store(STORE_FILE).map_err(|e| e.to_string())?;
-    let cfg = store
-        .get(CONFIG_KEY)
-        .and_then(|v| serde_json::from_value::<AppConfig>(v).ok())
-        .unwrap_or_default();
-    Ok(cfg)
+    let state = app.state::<DbState>();
+    let conn = state.0.lock().map_err(|e| e.to_string())?;
+    get_config(&conn)
 }
 
 #[tauri::command]
 pub fn save_config(app: AppHandle, config: AppConfig) -> Result<(), String> {
-    let store = app.store(STORE_FILE).map_err(|e| e.to_string())?;
-    let value = serde_json::to_value(&config).map_err(|e| e.to_string())?;
-    store.set(CONFIG_KEY, value);
-    store.save().map_err(|e| e.to_string())?;
-    Ok(())
+    let state = app.state::<DbState>();
+    let conn = state.0.lock().map_err(|e| e.to_string())?;
+    set_config(&conn, &config)
 }

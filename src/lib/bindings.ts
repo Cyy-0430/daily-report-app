@@ -24,13 +24,13 @@ export interface HistoryItem {
   createdAt: number;
 }
 
+/** 应用配置(历史记录已独立存于 SQLite,见 listHistory/addHistory/removeHistory)。 */
 export interface AppConfig {
   apiConfig: ApiConfig;
   promptTemplate: string;
   customDefaultTemplate: string;
   exportDir: string;
   collectConfig: CollectConfig;
-  history: HistoryItem[];
 }
 
 export type StreamChunk =
@@ -83,7 +83,6 @@ export function emptyConfig(): AppConfig {
       includePaths: [],
       excludePaths: [],
     },
-    history: [],
   };
 }
 
@@ -104,13 +103,18 @@ export const collectConversations = (
   filter: PathFilter,
 ) => invoke<CollectResult>("collect_conversations", { date, tools, filter });
 
-/** 流式生成日报。onMessage 在每个分片/完成/错误时回调。 */
+/** 历史记录(独立于配置,存于 SQLite)。 */
+export const listHistory = () => invoke<HistoryItem[]>("list_history");
+export const addHistory = (item: HistoryItem) => invoke<void>("add_history", { item });
+export const removeHistory = (id: string) => invoke<void>("remove_history", { id });
+
+/** 流式生成日报;成功时返回已保存的 HistoryItem。onMessage 在每个分片/完成/错误时回调。 */
 export function generateReport(
   input: string,
   conversations: string,
   onMessage: (chunk: StreamChunk) => void,
-): Promise<void> {
+): Promise<HistoryItem> {
   const channel = new Channel<StreamChunk>();
   channel.onmessage = onMessage;
-  return invoke<void>("generate_report", { input, conversations, onEvent: channel });
+  return invoke<HistoryItem>("generate_report", { input, conversations, onEvent: channel });
 }

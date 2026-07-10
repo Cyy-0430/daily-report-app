@@ -8,7 +8,7 @@
     collectConversations,
     type CollectResult,
   } from "$lib/bindings";
-  import { config, notify, pendingInput } from "$lib/store";
+  import { config, history, notify, pendingInput } from "$lib/store";
   import { renderMarkdown } from "$lib/markdown";
   import { save } from "@tauri-apps/plugin-dialog";
   import { writeText } from "@tauri-apps/plugin-clipboard-manager";
@@ -84,10 +84,11 @@
     output = "";
     mode = "preview";
     try {
-      await generateReport(input, conv, (chunk) => {
+      const item = await generateReport(input, conv, (chunk) => {
         if (chunk.type === "delta") output += chunk.text;
         else if (chunk.type === "error") notify("err", chunk.message);
       });
+      history.update((h) => [item, ...h]);
       notify("ok", "生成完成");
     } catch (e) {
       notify("err", String(e));

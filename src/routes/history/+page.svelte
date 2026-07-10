@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { loadConfig, saveConfig, type HistoryItem } from "$lib/bindings";
-  import { config, notify, pendingInput } from "$lib/store";
+  import { removeHistory, type HistoryItem } from "$lib/bindings";
+  import { history, notify, pendingInput } from "$lib/store";
   import { writeText } from "@tauri-apps/plugin-clipboard-manager";
   import { goto } from "$app/navigation";
   import { renderMarkdown } from "$lib/markdown";
@@ -9,10 +9,8 @@
 
   async function remove(id: string) {
     try {
-      const cur = await loadConfig();
-      const merged = { ...cur, history: cur.history.filter((h) => h.id !== id) };
-      await saveConfig(merged);
-      config.set(merged);
+      await removeHistory(id);
+      history.update((h) => h.filter((x) => x.id !== id));
       notify("ok", "已删除");
     } catch (e) {
       notify("err", String(e));
@@ -38,17 +36,17 @@
   <div class="page-inner">
     <header class="page-head">
       <h1>历史记录</h1>
-      <p>共 {$config.history.length} 条 · 生成后自动保存</p>
+      <p>共 {$history.length} 条 · 生成后自动保存</p>
     </header>
 
-    {#if !$config.history.length}
+    {#if !$history.length}
       <div class="empty-state">
         <span class="empty-mark">∅</span>
         <p>还没有记录<br />生成日报后会自动保存到这里</p>
       </div>
     {:else}
       <ul class="hist-list">
-        {#each $config.history as item (item.id)}
+        {#each $history as item (item.id)}
           <li class="panel hist-item">
             <div class="hist-row">
               <div class="hist-meta">

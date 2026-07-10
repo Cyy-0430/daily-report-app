@@ -1,11 +1,12 @@
-use crate::config::{load_config, save_config, ApiConfig, HistoryItem};
+use crate::config::{load_config, ApiConfig, HistoryItem};
+use crate::db::{insert_history, DbState};
 use chrono::Datelike;
 use futures_util::StreamExt;
 use reqwest::Client;
 use serde::Serialize;
 use std::time::Duration;
 use tauri::ipc::Channel;
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 
 /// 流式事件，通过 Tauri Channel 推送到前端。
 #[derive(Clone, Serialize)]
@@ -153,14 +154,14 @@ pub async fn test_connection(api: ApiConfig) -> Result<String, String> {
     }
 }
 
-/// 流式生成日报，完成后自动写入历史记录。
+/// 流式生成日报，完成后写入历史记录(独立 `add_history`,不再全量读写配置)。
 #[tauri::command]
 pub async fn generate_report(
     app: AppHandle,
     input: String,
     conversations: String,
     on_event: Channel<StreamChunk>,
-) -> Result<(), String> {
+) -> Result<HistoryItem, String> {
     let cfg = load_config(app.clone())?;
     let full = generate_stream(
         &cfg.api_config,
@@ -180,8 +181,8 @@ pub async fn generate_report(
         output: full,
         created_at: now.timestamp(),
     };
-    let mut new_cfg = cfg;
-    new_cfg.history.insert(0, item);
-    save_config(app, new_cfg)?;
-    Ok(())
+    let state = app.state::<DbState>();
+    let conn = state.0.lock().map_err(|e| e.to_string())?;
+    insert_history(&conn, &item)?;
+    Ok(item)
 }

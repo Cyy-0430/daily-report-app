@@ -9,27 +9,30 @@
     "preview": "vite preview",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
+    "test": "vitest run",
     "tauri": "tauri"
   },
   "license": "MIT",
   "dependencies": {
     "@tauri-apps/api": "^2",
-    "@tauri-apps/plugin-opener": "^2",
-    "@tauri-apps/plugin-dialog": "^2",
     "@tauri-apps/plugin-clipboard-manager": "^2",
-    "marked": "^14",
-    "dompurify": "^3"
+    "@tauri-apps/plugin-dialog": "^2",
+    "@tauri-apps/plugin-opener": "^2",
+    "dompurify": "^3",
+    "marked": "^14"
   },
   "devDependencies": {
     "@sveltejs/adapter-static": "^3.0.6",
     "@sveltejs/kit": "^2.9.0",
     "@sveltejs/vite-plugin-svelte": "^5.0.0",
     "@tailwindcss/vite": "^4",
-    "tailwindcss": "^4",
+    "@tauri-apps/cli": "^2",
+    "jsdom": "^29.1.1",
     "svelte": "^5.0.0",
     "svelte-check": "^4.0.0",
+    "tailwindcss": "^4",
     "typescript": "~5.6.2",
     "vite": "^6.0.3",
-    "@tauri-apps/cli": "^2"
+    "vitest": "^4.1.10"
   }
 }

@@ -15,6 +15,7 @@ This directory contains guidelines for backend development. Fill in each file wi
 | Guide | Description | Status |
 |-------|-------------|--------|
 | [Collector Spec](./collector-spec.md) | 采集器数据源(jsonl)+ 路径过滤(黑白名单)+ 采集命令跨层契约 | ✅ Filled |
+| [Storage Spec](./storage-spec.md) | SQLite 持久层:schema / 配置 KV / 历史 CRUD / 旧 data.json 迁移 / 跨层命令契约 | ✅ Filled |
 | [Directory Structure](./directory-structure.md) | Module organization and file layout | To fill |
 | [Database Guidelines](./database-guidelines.md) | ORM patterns, queries, migrations | To fill |
 | [Error Handling](./error-handling.md) | Error types, handling strategies | To fill |
