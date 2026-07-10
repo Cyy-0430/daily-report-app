@@ -1,6 +1,6 @@
 {
   "name": "daily-report-app",
-  "version": "0.2.0",
+  "version": "0.4.0",
   "description": "日报生成 App (Tauri2)",
   "type": "module",
   "scripts": {
