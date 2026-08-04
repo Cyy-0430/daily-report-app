@@ -97,7 +97,7 @@ pub(super) fn norm(p: &str) -> PathBuf {
 /// - cwd 为 `None`:includes 非空 → 拒绝(无法证实白名单);否则放行。
 ///
 /// 匹配基于规范化后的**组件级**前缀:子目录继承父级规则。
-fn session_allowed(cwd: Option<&Path>, includes: &[PathBuf], excludes: &[PathBuf]) -> bool {
+pub(super) fn session_allowed(cwd: Option<&Path>, includes: &[PathBuf], excludes: &[PathBuf]) -> bool {
     let Some(cwd) = cwd else {
         // cwd 未知:无法匹配黑名单;白名单非空则一律拒绝,否则放行。
         return includes.is_empty();

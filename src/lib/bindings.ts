@@ -7,7 +7,7 @@ export interface ApiConfig {
 }
 
 export interface CollectConfig {
-  /** 启用的采集工具 id,MVP 仅 "claude-code"。 */
+  /** 启用的采集工具 id,默认 "claude-code" 与 "zcode"。 */
   enabledTools: string[];
   /** 仅采集(白名单)的工作目录,空 = 不限。子目录一并包含。 */
   includePaths: string[];
@@ -72,6 +72,12 @@ export interface PathFilter {
   excludePaths: string[];
 }
 
+/** 可用的采集工具(id 与 Rust `all_collectors()` 对齐,单一来源)。 */
+export const COLLECT_TOOLS: { id: string; label: string; hint: string }[] = [
+  { id: "claude-code", label: "Claude Code", hint: "~/.claude/projects" },
+  { id: "zcode", label: "ZCode", hint: "~/.zcode/cli/db" },
+];
+
 export function emptyConfig(): AppConfig {
   return {
     apiConfig: { baseUrl: "", apiKey: "", model: "" },
@@ -79,7 +85,7 @@ export function emptyConfig(): AppConfig {
     customDefaultTemplate: "",
     exportDir: "",
     collectConfig: {
-      enabledTools: ["claude-code"],
+      enabledTools: ["claude-code", "zcode"],
       includePaths: [],
       excludePaths: [],
     },

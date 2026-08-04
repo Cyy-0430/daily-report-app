@@ -51,7 +51,7 @@ pub async fn collect_conversations(
 **过滤纯函数**(`claude_code.rs`):
 ```rust
 pub(super) fn norm(p: &str) -> PathBuf                 // 小写 + `/`→`\` + 去尾分隔符
-fn session_allowed(cwd: Option<&Path>, includes: &[PathBuf], excludes: &[PathBuf]) -> bool
+pub(super) fn session_allowed(cwd: Option<&Path>, includes: &[PathBuf], excludes: &[PathBuf]) -> bool  // 复用:zcode 共享
 ```
 
 ### 3. Contracts
@@ -142,7 +142,77 @@ if session_allowed(cwd_path, &filter.includes, &filter.excludes) {
 
 ---
 
+## Scenario: ZCode (SQLite) 数据源
+
+> ZCode(智谱 GLM coding agent)的对话存 SQLite,与 Claude Code 的 jsonl 完全不同。
+> 本场景覆盖其数据源结构、主会话过滤、毫秒时间戳、只读访问与字段映射。
+
+### 1. Scope / Trigger
+修改 `zcode.rs`、新增基于 SQLite 的采集器、或读取 ZCode `db.sqlite` 字段时遵守本契约。
+
+### 2. Signatures
+**数据源路径**:`~/.zcode/cli/db/db.sqlite`,入口 `zcode::db_path()`。
+
+**只读打开**:
+```rust
+Connection::open_with_flags(&db, OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX)
+```
+
+**三张核心表**(已实测):
+- `session`:`id` / `parent_id`(NULL=主会话) / `directory`(真实 cwd) / `title` / `time_created`(Unix 毫秒)。
+- `message`:`session_id` / `time_created`(Unix 毫秒) / `data`(`{role:"user"|"assistant",...}`) / `sequence`。
+- `part`:`message_id` / `data`(`{type:"text"|"tool"|"reasoning"|"step-start"|"step-finish"|"file",...}`) / `sequence`。
+
+### 3. Contracts
+
+#### 3d. ZCode SQLite 数据源(硬契约)
+- **仅主会话**:`session.parent_id IS NULL`;`sess_subagent_*` 是被主会话 spawn 的探索子
+  agent,**不采集**(噪音大,且非用户直接交互)。
+- **真实 cwd 来自 `session.directory`**:本身是真实路径(无 Claude Code 的目录名编码歧义),
+  直接喂给 `session_allowed`,沿用 §3b 的组件级前缀 / 排除优先语义。
+- **时间过滤(硬契约)**:按 `message.time_created`(**Unix 毫秒**)`/1000`→本地时区→比 date;
+  绝不按文件修改时间或 session 的 time_created(session 跨天累积,同 session 按目标日切片)。
+- **字段过滤(策略①)**:`part.type=text` → 文本(`data.text`);`part.type=tool` →
+  `"{data.tool}: {key}"`(key 从 `data.state.input` 取 file_path/path/command/pattern/url/description 回退,截断 80);
+  `reasoning`/`step-*`/`file` 一律丢弃(等同 Claude Code 丢 thinking/tool_result)。
+- **只读访问**:`READ_ONLY | NO_MUTEX` 打开,不写入、不阻塞 ZCode 进程(WAL 下只读连接不阻塞写者)。
+- **project 显示名**:`session.title`,空回退 `directory` basename。
+- **role**:`message.data.role`(`"assistant"`→Assistant,其余→User)。
+
+#### 与 Claude Code 的关键差异(实现/维护时对照)
+| 维度 | Claude Code | ZCode |
+|---|---|---|
+| 存储 | jsonl 文件(append-only) | SQLite(session/message/part) |
+| 路径 | `~/.claude/projects/<enc>/*.jsonl` | `~/.zcode/cli/db/db.sqlite` |
+| 对话单元 | 每行 `{type:user\|assistant,message.content}` | message(role) + part(type) 两表关联 |
+| 时间 | RFC3339 字符串 | **Unix 毫秒** |
+| cwd 来源 | 每行 `cwd` 字段 | `session.directory` |
+| 主/sub 区分 | 无(目录即 session) | `parent_id IS NULL` |
+| thinking 丢弃 | `thinking` block | `reasoning` part |
+
+不变量(两者共享):策略①字段过滤、按消息时间做日期过滤、真实 cwd 组件级前缀匹配、排除优先。
+
+### 4. Validation & Error Matrix
+
+| 条件 | 行为 |
+|------|------|
+| `~/.zcode` 不存在 / db 缺失 / 打开失败 | 返回 `Ok((vec![], 0))` **静默跳过**(不阻断其它采集器) |
+| `parent_id` 非空(subagent) | 整 session 不采集 |
+| `message.time_created` 落目标 date(本地) | 进入解析;否则跳过(跨天切片,不计 skipped) |
+| `part.data` JSON 非法 | 计入 `skipped_lines`,跳过该 part |
+| cwd 命中黑名单 / 不在白名单 | 整 session 被丢弃(不计 skipped) |
+
+### 5. Tests Required
+`zcode.rs` 的 `#[cfg(test)]` 必须覆盖:
+- `text` part → 文本;`tool` part → `"{name}: {key}"`;`reasoning`/`step-*`/`file` → 丢弃(返回 None)。
+- 毫秒→本地日期过滤(`date_matches`),同 ms 在不同 date 判定不同。
+- 跨天切片(`build_day_lines`):同 session 两条 message 分属不同日,只留目标日;目标日无 message → 空。
+- 端到端:`collect_real_zcode_sample_day`(ignored,需本机 db)对真实 SQLite 采集主会话。
+
+---
+
 ## 关联
-- 任务来源:`.trellis/tasks/07-10-collect-path-filter/`(prd/design/implement)。
-- 字段级内容过滤(策略①,保留 user/assistant 文本 + tool_use 摘要,丢 tool_result/thinking)
-  见 `claude_code.rs::extract_line` 及其现有单测,不在本契约范围。
+- Claude Code 路径过滤任务:`.trellis/tasks/07-10-collect-path-filter/`(prd/design/implement)。
+- ZCode 采集任务:`.trellis/tasks/08-04-zcode-collector/`(prd/design/implement)。
+- 字段级内容过滤(策略①,保留 user/assistant 文本 + tool 摘要,丢 tool_result/thinking/reasoning)
+  见 `claude_code.rs::extract_line` 与 `zcode.rs::extract_from_parts` 及其单测。

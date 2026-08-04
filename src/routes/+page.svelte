@@ -6,6 +6,7 @@
     exportReport,
     writeTextFile,
     collectConversations,
+    COLLECT_TOOLS,
     type CollectResult,
   } from "$lib/bindings";
   import { config, history, notify, pendingInput } from "$lib/store";
@@ -25,6 +26,18 @@
   let showConversations = $state(false);
 
   let html = $derived(renderMarkdown(output));
+
+  // 采集来源标签:依勾选的工具动态展示(id→label),多个用英文逗号隔开。
+  // enabledTools 为空时回退到默认两个(与采集逻辑一致)。
+  const enabledToolIds = $derived.by(() => {
+    const t = $config.collectConfig?.enabledTools ?? [];
+    return t.length ? t : ["claude-code", "zcode"];
+  });
+  const collectSourceLabel = $derived(
+    enabledToolIds
+      .map((id) => COLLECT_TOOLS.find((t) => t.id === id)?.label ?? id)
+      .join(", "),
+  );
 
   function todayStr(): string {
     const d = new Date();
@@ -47,7 +60,7 @@
 
   async function onCollect() {
     const cfg = $config.collectConfig;
-    const tools = cfg?.enabledTools?.length ? cfg.enabledTools : ["claude-code"];
+    const tools = enabledToolIds;
     // 路径过滤:从配置读取,缺省等价于空规则(不过滤,向后兼容)。
     const filter = {
       includePaths: cfg?.includePaths ?? [],
@@ -154,7 +167,7 @@
     </div>
 
     <div class="collect-bar">
-      <span class="collect-src">来源：Claude Code</span>
+      <span class="collect-src">来源：{collectSourceLabel}</span>
       {#if !collectResult || collectResult.sessions.length === 0}
         <button class="btn btn-ghost btn-sm" onclick={onCollect} disabled={busy || collecting}>
           {collecting ? "采集中…" : "采集对话"}

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { loadConfig, saveConfig, testConnection, type ApiConfig } from "$lib/bindings";
+  import { loadConfig, saveConfig, testConnection, COLLECT_TOOLS, type ApiConfig } from "$lib/bindings";
   import { config, notify } from "$lib/store";
   import { DEFAULT_PROMPT_TEMPLATE } from "$lib/template";
   import { open } from "@tauri-apps/plugin-dialog";
@@ -9,7 +9,8 @@
   let template = $state(DEFAULT_PROMPT_TEMPLATE);
   let customDefault = $state("");
   let exportDir = $state("");
-  let collectEnabled = $state(true);
+  // 各采集工具的勾选状态(按 COLLECT_TOOLS 渲染,id 与 Rust all_collectors() 对齐)。
+  let toolEnabled = $state<Record<string, boolean>>({});
   // 路径过滤:排除(黑名单)/ 仅采集(白名单),基于真实工作目录(cwd)。
   let excludePaths = $state<string[]>([]);
   let includePaths = $state<string[]>([]);
@@ -23,7 +24,8 @@
     template = c.promptTemplate || DEFAULT_PROMPT_TEMPLATE;
     customDefault = c.customDefaultTemplate || "";
     exportDir = c.exportDir;
-    collectEnabled = (c.collectConfig?.enabledTools ?? []).includes("claude-code");
+    const tools = c.collectConfig?.enabledTools ?? [];
+    toolEnabled = Object.fromEntries(COLLECT_TOOLS.map((t) => [t.id, tools.includes(t.id)]));
     includePaths = [...(c.collectConfig?.includePaths ?? [])];
     excludePaths = [...(c.collectConfig?.excludePaths ?? [])];
   });
@@ -38,7 +40,7 @@
         promptTemplate: template,
         exportDir,
         collectConfig: {
-          enabledTools: collectEnabled ? ["claude-code"] : [],
+          enabledTools: COLLECT_TOOLS.filter((t) => toolEnabled[t.id]).map((t) => t.id),
           includePaths: dedupePaths(includePaths),
           excludePaths: dedupePaths(excludePaths),
         },
@@ -212,10 +214,12 @@
           >{"{{conversations}}"}</code
         > 为采集到的当日对话（字段级过滤后，token 已大幅压缩）。
       </p>
-      <label class="fld fld-check">
-        <input type="checkbox" bind:checked={collectEnabled} />
-        <span>Claude Code · ~/.claude/projects</span>
-      </label>
+      {#each COLLECT_TOOLS as t (t.id)}
+        <label class="fld fld-check">
+          <input type="checkbox" bind:checked={toolEnabled[t.id]} />
+          <span>{t.label} · {t.hint}</span>
+        </label>
+      {/each}
 
       <div class="sub-title">路径过滤</div>
       <p class="sec-hint">
