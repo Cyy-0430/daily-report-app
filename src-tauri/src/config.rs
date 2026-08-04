@@ -17,7 +17,7 @@ pub struct ApiConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CollectConfig {
-    /// 启用的采集工具 id,默认 "claude-code" 与 "zcode"。
+    /// 启用的采集工具 id,默认 "claude-code"、"zcode" 与 "codex"。
     #[serde(default = "default_enabled_tools")]
     pub enabled_tools: Vec<String>,
     /// 仅采集(白名单)的工作目录,空 = 不限。其下子目录一并包含。
@@ -30,7 +30,11 @@ pub struct CollectConfig {
 
 /// 旧配置缺失 enabled_tools 时回填默认值。
 fn default_enabled_tools() -> Vec<String> {
-    vec!["claude-code".to_string(), "zcode".to_string()]
+    vec![
+        "claude-code".to_string(),
+        "zcode".to_string(),
+        "codex".to_string(),
+    ]
 }
 
 impl Default for CollectConfig {

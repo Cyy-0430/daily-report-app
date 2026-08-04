@@ -1,7 +1,7 @@
 # 采集器数据源与路径过滤契约 (Collector Spec)
 
-> 后端 `src-tauri/src/collector/` 的可执行契约。覆盖 Claude Code jsonl 数据源、
-> 路径过滤匹配、以及采集命令的跨层参数契约。
+> 后端 `src-tauri/src/collector/` 的可执行契约。覆盖 Claude Code / Codex jsonl 数据源、
+> ZCode SQLite 数据源、路径过滤匹配、以及采集命令的跨层参数契约。
 
 ## Scenario: 对话采集 + 路径过滤
 
@@ -211,8 +211,107 @@ Connection::open_with_flags(&db, OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::S
 
 ---
 
+## Scenario: Codex (rollout jsonl) 数据源
+
+> Codex(OpenAI Codex CLI)的对话存 jsonl rollout,与 Claude Code 同为 append-only
+> 行式日志,但事件结构不同:对话有两套并行表示,文本源必须取展示层的 `event_msg`,
+> 不能取 API 层的 `response_item`/`message`。本场景覆盖其数据源结构、文本源选择、
+> cwd 来源、工具调用分支与字段映射。
+
+### 1. Scope / Trigger
+修改 `codex.rs`、新增基于 rollout jsonl 的采集器、或读取 Codex 会话字段时遵守本契约。
+
+### 2. Signatures
+**数据源路径**:`~/.codex/sessions/<YYYY>/<MM>/<DD>/rollout-<ts>-<uuid>.jsonl`,入口
+`codex::home_sessions_dir()`(递归收集 `*.jsonl`,见 `collect_jsonl_files`)。
+
+**事件顶层字段**:`timestamp`(UTC, RFC3339)、`type`、`payload`。
+
+**采集器**:`CodexCollector`(`id="codex"`,`display_name="Codex"`),复用
+`claude_code::session_allowed`(已 `pub(super)`)做路径过滤。
+
+### 3. Contracts
+
+#### 3e. Codex rollout jsonl 数据源(硬契约)
+- **文本源(硬契约)**:对话文本**只取 `event_msg`** 事件:
+  - `payload.type=="user_message"` → User 行,文本=`payload.message`;
+  - `payload.type=="agent_message"` → Assistant 行,文本=`payload.message`(`phase=final_answer`)。
+  - `payload.message` 去空白后为空 → 跳过该行。
+- **`response_item`/`message` 整类丢弃**(含 `role=developer|user|assistant`):它是 API 层
+  原始消息,含注入的权限 / AGENTS.md / skills 指令噪声,user 真实输入已由 `user_message`
+  干净覆盖——**不得用作文本源**(避免噪声与重复)。
+- **cwd 来自 `session_meta.payload.cwd`**(真实路径,无 Claude Code 的目录名编码歧义),
+  直接喂 `session_allowed`,沿用 §3b 组件级前缀 / 排除优先。**会话级 cwd,不随行覆盖。**
+- **session_id**:`session_meta.payload.session_id`,回退文件名 uuid 段。
+- **时间过滤(硬契约)**:按每行顶层 `timestamp`(UTC RFC3339)转本地时区后比 date;
+  绝不按文件名日期段或文件 mtime——rollout 按**会话起始日**归档,跨天延续的会话需靠
+  timestamp 才能被目标日命中(同 session 按目标日切片)。
+- **字段过滤(策略①)**:`event_msg`/`{user,agent}_message` 保留;`task_started`/
+  `task_complete`/`token_count`/`thread_settings_applied`/`session_meta`/`world_state`/
+  `turn_context` 一律丢弃。
+- **扁平文本内嵌块剥离(策略①,关键)**:Codex 把 tool_result / 命令输出摊平成文本标签
+  塞进 `event_msg` 的 `message`(与 Claude Code 的独立 tool_result block 不同)。`clean_message`
+  在保留前剥除这些块,等价实现"丢 tool_result 全文":
+  - `[external_agent_tool_result] … [/external_agent_tool_result]` → 丢;
+  - `[external_agent_tool_call[: NAME]] … [/external_agent_tool_call]` → 留 NAME 摘要;
+  - `<task-notification> … </task-notification>`、`<command-name>` / `<command-message>` /
+    `<command-args>` / `<local-command-stdout>` → 丢。
+  - 剥光后(text 与 tools 皆空)的 message 整条丢弃。
+  - 实测本机 2026-07-31:est_tokens 812k → 208k(↓74%),证明 tool_result 全文是 token 膨胀主因。
+- **工具调用(防御性,本机零样本)**:`response_item`/`function_call`(`payload.name`+
+  `payload.arguments`,arguments 为 **JSON 编码字符串**,解析后取
+  `{file_path|path|command|pattern|url|description}` 回退链截断 80)、`response_item`/
+  `local_shell_call`(`payload.action.command`,name 固定 `"shell"`)→ Assistant 工具行。
+  本机实测仅有内嵌于 `agent_message.message` 的 `[external_agent_tool_call: …]` 文本标签
+  (作为 Assistant 文本保留,同 Claude Code 对 meta 文本的 MVP 处理),**无真实
+  `function_call` 事件**;该分支由合成 fixture 单测钉结构,留待 agentic 使用后回归。
+- **project 显示名**:cwd basename(如 `yqnf-contract`);不可得回退 session_id 前 8 位。
+
+#### 与 Claude Code / ZCode 的关键差异(实现/维护时对照)
+| 维度 | Claude Code | ZCode | Codex |
+|---|---|---|---|
+| 存储 | jsonl 文件 | SQLite(session/message/part) | jsonl 文件(rollout) |
+| 路径 | `~/.claude/projects/<enc>/*.jsonl` | `~/.zcode/cli/db/db.sqlite` | `~/.codex/sessions/<Y>/<M>/<D>/rollout-*.jsonl` |
+| 文本源 | 每行 `message.content` | `part` type=text | **`event_msg`/`{user,agent}_message`.message** |
+| 时间 | RFC3339 字符串 | Unix 毫秒 | RFC3339 字符串(顶层 timestamp) |
+| cwd 来源 | 每行 `cwd` 字段 | `session.directory` | `session_meta.payload.cwd` |
+| 噪声丢弃 | `thinking`/`tool_result` block | `reasoning`/`step-*`/`file` part | **`response_item`/`message` 整类(含 developer 注入)** |
+| 工具调用 | `tool_use` block | `part` type=tool | `response_item`/`function_call`\|`local_shell_call`(本机无样本) |
+
+不变量(三者共享):策略①字段过滤、按行/消息 timestamp 做日期过滤、真实 cwd 组件级前缀匹配、
+排除优先、未装/读取失败静默跳过。
+
+### 4. Validation & Error Matrix
+
+| 条件 | 行为 |
+|------|------|
+| `~/.codex/sessions` 不存在 | 返回 `Ok((vec![], 0))` **静默跳过**(不阻断其它采集器) |
+| 某 rollout 行 JSON 非法 | 计入 `skipped_lines`,跳过该行,继续 |
+| 行无 `timestamp` 或解析失败 | 非 `session_meta` 行会计入 `skipped_lines`;`session_meta` 等无 timestamp 行正常跳过(不计) |
+| 行 `timestamp` 落目标 date(本地) | 进入解析;否则跳过(跨天切片,不计 skipped) |
+| `event_msg`/`{user,agent}_message` 的 `message` 为空白 | 跳过(不产 line,不计 skipped) |
+| `response_item`/`message`(任意 role) | 整类丢弃(不计 skipped,正常过滤) |
+| cwd 命中黑名单 / 不在白名单 | digest 被丢弃(不计 skipped) |
+| session 无任何目标日期有效行 | 返回 `None`(不产出 digest) |
+
+### 5. Tests Required
+`codex.rs` 的 `#[cfg(test)]` 必须覆盖:
+- `user_message` → User 文本;`agent_message` → Assistant 文本;空白 message → None。
+- **`clean_message` 内嵌块剥离**:`[external_agent_tool_result]` 整块丢;`[external_agent_tool_call: X]`
+  → 留工具名 X;`<command-*>` / `<task-notification>` / `<local-command-stdout>` 丢;整条剥光 → None;
+  未闭合开标签当字面量保留(容错)。
+- `task_started`/`token_count` 等元数据事件 → None;`response_item`/`message`(含 developer/user/assistant role)→ None。
+- `function_call`(arguments 为 JSON 字符串 + 对象两种)→ `"{name}: {key}"`;`local_shell_call` → `"shell: <cmd>"`(合成 fixture)。
+- `session_meta`/`world_state`/`turn_context` → None。
+- `project_name`:cwd basename 回退;无 cwd → session_id 前 8 位。
+- 跨天切片(`parse_session_cross_day_slice`):同 session 两行分属不同日只留目标日;目标日无行 → None。
+- 端到端:`collect_real_codex_sample_day`(ignored,需本机 sessions)对真实 rollout 采集会话。
+
+---
+
 ## 关联
 - Claude Code 路径过滤任务:`.trellis/tasks/07-10-collect-path-filter/`(prd/design/implement)。
 - ZCode 采集任务:`.trellis/tasks/08-04-zcode-collector/`(prd/design/implement)。
+- Codex 采集任务:`.trellis/tasks/08-04-codex-collector/`(prd/design/implement)。
 - 字段级内容过滤(策略①,保留 user/assistant 文本 + tool 摘要,丢 tool_result/thinking/reasoning)
   见 `claude_code.rs::extract_line` 与 `zcode.rs::extract_from_parts` 及其单测。

@@ -28,10 +28,10 @@
   let html = $derived(renderMarkdown(output));
 
   // 采集来源标签:依勾选的工具动态展示(id→label),多个用英文逗号隔开。
-  // enabledTools 为空时回退到默认两个(与采集逻辑一致)。
+  // enabledTools 为空时回退到默认三个(与采集逻辑一致)。
   const enabledToolIds = $derived.by(() => {
     const t = $config.collectConfig?.enabledTools ?? [];
-    return t.length ? t : ["claude-code", "zcode"];
+    return t.length ? t : ["claude-code", "zcode", "codex"];
   });
   const collectSourceLabel = $derived(
     enabledToolIds

@@ -378,10 +378,14 @@ mod tests {
         let got = get_config(&conn).unwrap();
         assert_eq!(got.api_config.base_url, "");
         assert_eq!(got.export_dir, "");
-        // default_enabled_tools 回填 claude-code 与 zcode
+        // default_enabled_tools 回填 claude-code、zcode 与 codex
         assert_eq!(
             got.collect_config.enabled_tools,
-            vec!["claude-code".to_string(), "zcode".to_string()]
+            vec![
+                "claude-code".to_string(),
+                "zcode".to_string(),
+                "codex".to_string()
+            ]
         );
     }
 

@@ -18,6 +18,9 @@ pub use claude_code::ClaudeCodeCollector;
 pub mod zcode;
 pub use zcode::ZCodeCollector;
 
+pub mod codex;
+pub use codex::CodexCollector;
+
 /// 对话角色。
 #[derive(Debug, Clone, Copy, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -192,7 +195,11 @@ fn parse_target_date(date: &str) -> NaiveDate {
 
 /// 所有已注册的采集器(新增工具只需在此登记一处)。
 fn all_collectors() -> Vec<Box<dyn Collector>> {
-    vec![Box::new(ClaudeCodeCollector), Box::new(ZCodeCollector)]
+    vec![
+        Box::new(ClaudeCodeCollector),
+        Box::new(ZCodeCollector),
+        Box::new(CodexCollector),
+    ]
 }
 
 /// 采集(同步阻塞 IO),由 command 在 spawn_blocking 中调用。
@@ -222,7 +229,7 @@ fn collect_blocking(
 /// 采集指定日期、指定工具的本地对话记录。
 ///
 /// - `date`:本地时区的某一天,格式 "YYYY-MM-DD";空串表示今天。
-/// - `tools`:工具 id 列表,支持 "claude-code" 与 "zcode"。
+/// - `tools`:工具 id 列表,支持 "claude-code"、"zcode" 与 "codex"。
 /// - `filter`:路径过滤(include/exclude,基于真实 cwd);传空数组等价于不过滤。
 #[tauri::command]
 pub async fn collect_conversations(

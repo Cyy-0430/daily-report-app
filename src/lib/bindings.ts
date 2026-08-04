@@ -7,7 +7,7 @@ export interface ApiConfig {
 }
 
 export interface CollectConfig {
-  /** 启用的采集工具 id,默认 "claude-code" 与 "zcode"。 */
+  /** 启用的采集工具 id,默认 "claude-code"、"zcode" 与 "codex"。 */
   enabledTools: string[];
   /** 仅采集(白名单)的工作目录,空 = 不限。子目录一并包含。 */
   includePaths: string[];
@@ -76,6 +76,7 @@ export interface PathFilter {
 export const COLLECT_TOOLS: { id: string; label: string; hint: string }[] = [
   { id: "claude-code", label: "Claude Code", hint: "~/.claude/projects" },
   { id: "zcode", label: "ZCode", hint: "~/.zcode/cli/db" },
+  { id: "codex", label: "Codex", hint: "~/.codex/sessions" },
 ];
 
 export function emptyConfig(): AppConfig {
@@ -85,7 +86,7 @@ export function emptyConfig(): AppConfig {
     customDefaultTemplate: "",
     exportDir: "",
     collectConfig: {
-      enabledTools: ["claude-code", "zcode"],
+      enabledTools: ["claude-code", "zcode", "codex"],
       includePaths: [],
       excludePaths: [],
     },
