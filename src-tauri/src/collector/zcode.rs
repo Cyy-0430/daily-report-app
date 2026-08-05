@@ -35,12 +35,21 @@ impl Collector for ZCodeCollector {
         "ZCode"
     }
 
+    fn default_path(&self) -> Option<PathBuf> {
+        db_path()
+    }
+
     fn collect(
         &self,
         date: NaiveDate,
         filter: &PathFilter,
+        custom_path: Option<&str>,
     ) -> Result<(Vec<SessionDigest>, usize), String> {
-        let Some(db) = db_path() else {
+        // 非空覆盖 → 展开后用之;否则用默认;两者皆空 → 静默跳过。
+        let Some(db) = custom_path
+            .and_then(super::expand_home)
+            .or_else(|| self.default_path())
+        else {
             return Ok((Vec::new(), 0)); // 无法定位主目录 → 静默跳过
         };
         if !db.exists() {
@@ -424,7 +433,7 @@ mod tests {
     fn collect_real_zcode_sample_day() {
         let date = NaiveDate::from_ymd_opt(2026, 7, 13).unwrap();
         let (digests, skipped) = ZCodeCollector
-            .collect(date, &PathFilter::default())
+            .collect(date, &PathFilter::default(), None)
             .expect("采集不应报错");
         println!("== ZCode 采集 2026-07-13: sessions={}, skipped={} ==", digests.len(), skipped);
         for d in &digests {

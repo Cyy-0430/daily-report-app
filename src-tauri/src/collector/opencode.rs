@@ -21,7 +21,9 @@
 //!   db 不存在或打开失败一律安静跳过,不阻断其它采集器。
 
 use super::claude_code::session_allowed;
-use super::zcode::{build_day_lines, extract_from_parts, ms_to_local};
+use super::zcode::{build_day_lines, ms_to_local};
+#[cfg(test)]
+use super::zcode::extract_from_parts;
 use super::{session_tokens, Collector, PathFilter, SessionDigest};
 use chrono::NaiveDate;
 use rusqlite::{params, Connection, OpenFlags};
@@ -38,12 +40,21 @@ impl Collector for OpencodeCollector {
         "Opencode"
     }
 
+    fn default_path(&self) -> Option<PathBuf> {
+        db_path()
+    }
+
     fn collect(
         &self,
         date: NaiveDate,
         filter: &PathFilter,
+        custom_path: Option<&str>,
     ) -> Result<(Vec<SessionDigest>, usize), String> {
-        let Some(db) = db_path() else {
+        // 非空覆盖 → 展开后用之;否则用默认;两者皆空 → 静默跳过。
+        let Some(db) = custom_path
+            .and_then(super::expand_home)
+            .or_else(|| self.default_path())
+        else {
             return Ok((Vec::new(), 0)); // 无法定位主目录 → 静默跳过
         };
         if !db.exists() {
@@ -336,7 +347,7 @@ mod tests {
     fn collect_real_opencode_sample_day() {
         let date = NaiveDate::from_ymd_opt(2026, 8, 3).unwrap();
         let (digests, skipped) = OpencodeCollector
-            .collect(date, &PathFilter::default())
+            .collect(date, &PathFilter::default(), None)
             .expect("采集不应报错");
         println!("== opencode 采集 2026-08-03: sessions={}, skipped={} ==", digests.len(), skipped);
         for d in &digests {

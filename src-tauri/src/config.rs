@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use tauri::{AppHandle, Manager};
 
 use crate::db::{get_config, set_config, DbState};
@@ -26,6 +27,10 @@ pub struct CollectConfig {
     /// 排除(黑名单)的工作目录,其下会话一律不采集。排除优先于仅采集。
     #[serde(default)]
     pub exclude_paths: Vec<String>,
+    /// 各采集工具的自定义数据源路径(覆盖默认)。键 = 工具 id,值 = 路径串;
+    /// 空串或缺失 = 用该工具默认路径。支持 `~` 展开(见 `collector::expand_home`)。
+    #[serde(default)]
+    pub tool_paths: HashMap<String, String>,
 }
 
 /// 旧配置缺失 enabled_tools 时回填默认值。
@@ -44,6 +49,7 @@ impl Default for CollectConfig {
             enabled_tools: default_enabled_tools(),
             include_paths: Vec::new(),
             exclude_paths: Vec::new(),
+            tool_paths: HashMap::new(),
         }
     }
 }

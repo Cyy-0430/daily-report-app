@@ -13,6 +13,8 @@ export interface CollectConfig {
   includePaths: string[];
   /** 排除(黑名单)的工作目录,其下会话一律不采集。排除优先于仅采集。 */
   excludePaths: string[];
+  /** 各采集工具的自定义数据源路径(覆盖默认)。键=工具 id,值=路径;空串/缺失=用默认。 */
+  toolPaths: Record<string, string>;
 }
 
 export interface HistoryItem {
@@ -73,11 +75,17 @@ export interface PathFilter {
 }
 
 /** 可用的采集工具(id 与 Rust `all_collectors()` 对齐,单一来源)。 */
-export const COLLECT_TOOLS: { id: string; label: string; hint: string }[] = [
-  { id: "claude-code", label: "Claude Code", hint: "~/.claude/projects" },
-  { id: "zcode", label: "ZCode", hint: "~/.zcode/cli/db" },
-  { id: "codex", label: "Codex", hint: "~/.codex/sessions" },
-  { id: "opencode", label: "Opencode", hint: "~/.local/share/opencode" },
+export const COLLECT_TOOLS: {
+  id: string;
+  label: string;
+  hint: string;
+  /** 数据源类型:dir=扫描目录下的会话文件;file=打开单个 SQLite db 文件。仅展示用。 */
+  kind: "dir" | "file";
+}[] = [
+  { id: "claude-code", label: "Claude Code", hint: "~/.claude/projects", kind: "dir" },
+  { id: "zcode", label: "ZCode", hint: "~/.zcode/cli/db", kind: "file" },
+  { id: "codex", label: "Codex", hint: "~/.codex/sessions", kind: "dir" },
+  { id: "opencode", label: "Opencode", hint: "~/.local/share/opencode", kind: "file" },
 ];
 
 export function emptyConfig(): AppConfig {
@@ -90,6 +98,7 @@ export function emptyConfig(): AppConfig {
       enabledTools: ["claude-code", "zcode", "codex", "opencode"],
       includePaths: [],
       excludePaths: [],
+      toolPaths: {},
     },
   };
 }
@@ -101,15 +110,21 @@ export const exportReport = (content: string) => invoke<string | null>("export_r
 export const writeTextFile = (path: string, content: string) =>
   invoke<void>("write_text_file", { path, content });
 
+/** 各采集工具数据源的默认路径(已展开 ~),供设置页展示与「恢复默认」。键=工具 id。 */
+export const defaultCollectPaths = () =>
+  invoke<Record<string, string>>("default_collect_paths");
+
 /**
  * 采集指定日期、指定工具的本地对话记录,并按 filter 做路径过滤。
- * date 为 "YYYY-MM-DD",空串表示今天;filter 传空数组等价于不过滤。
+ * date 为 "YYYY-MM-DD",空串表示今天;filter 传空数组等价于不过滤;
+ * toolPaths 为各工具的自定义数据源路径(覆盖默认),键缺失/空串=用默认。
  */
 export const collectConversations = (
   date: string,
   tools: string[],
   filter: PathFilter,
-) => invoke<CollectResult>("collect_conversations", { date, tools, filter });
+  toolPaths: Record<string, string>,
+) => invoke<CollectResult>("collect_conversations", { date, tools, filter, toolPaths });
 
 /** 历史记录(独立于配置,存于 SQLite)。 */
 export const listHistory = () => invoke<HistoryItem[]>("list_history");

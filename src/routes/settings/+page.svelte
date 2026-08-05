@@ -1,6 +1,13 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { loadConfig, saveConfig, testConnection, COLLECT_TOOLS, type ApiConfig } from "$lib/bindings";
+  import {
+    loadConfig,
+    saveConfig,
+    testConnection,
+    defaultCollectPaths,
+    COLLECT_TOOLS,
+    type ApiConfig,
+  } from "$lib/bindings";
   import { config, notify } from "$lib/store";
   import { DEFAULT_PROMPT_TEMPLATE } from "$lib/template";
   import { open } from "@tauri-apps/plugin-dialog";
@@ -14,6 +21,10 @@
   // 路径过滤:排除(黑名单)/ 仅采集(白名单),基于真实工作目录(cwd)。
   let excludePaths = $state<string[]>([]);
   let includePaths = $state<string[]>([]);
+  // 各采集工具的数据源路径(可编辑)。defaultPaths = 后端权威默认;
+  // toolPaths = 输入框当前值(初值 = 覆盖 ?? 默认,故始终有真实路径)。
+  let defaultPaths = $state<Record<string, string>>({});
+  let toolPaths = $state<Record<string, string>>({});
   let showKey = $state(false);
   let testing = $state(false);
   let saving = $state(false);
@@ -28,6 +39,12 @@
     toolEnabled = Object.fromEntries(COLLECT_TOOLS.map((t) => [t.id, tools.includes(t.id)]));
     includePaths = [...(c.collectConfig?.includePaths ?? [])];
     excludePaths = [...(c.collectConfig?.excludePaths ?? [])];
+    // 各工具数据源路径:后端给出权威默认(展开 ~),前端用「覆盖 ?? 默认」作为输入框初值。
+    defaultPaths = await defaultCollectPaths();
+    const saved = c.collectConfig?.toolPaths ?? {};
+    toolPaths = Object.fromEntries(
+      COLLECT_TOOLS.map((t) => [t.id, (saved[t.id] ?? "").trim() || defaultPaths[t.id] || ""]),
+    );
   });
 
   async function save() {
@@ -43,6 +60,7 @@
           enabledTools: COLLECT_TOOLS.filter((t) => toolEnabled[t.id]).map((t) => t.id),
           includePaths: dedupePaths(includePaths),
           excludePaths: dedupePaths(excludePaths),
+          toolPaths: Object.fromEntries(COLLECT_TOOLS.map((t) => [t.id, storedPath(t.id)])),
         },
       };
       await saveConfig(merged);
@@ -68,6 +86,13 @@
       out.push(s);
     }
     return out;
+  }
+
+  /** 规整某工具数据源路径为待存值:等于默认或为空 → ""(=用默认,保持配置干净);否则存 trim 后的值。 */
+  function storedPath(id: string): string {
+    const v = (toolPaths[id] ?? "").trim();
+    const d = (defaultPaths[id] ?? "").trim();
+    return v && v !== d ? v : "";
   }
 
   async function setAsDefault() {
@@ -219,6 +244,22 @@
           <input type="checkbox" bind:checked={toolEnabled[t.id]} />
           <span>{t.label} · {t.hint}</span>
         </label>
+        <div class="path-row tool-path-row">
+          <input
+            class="field"
+            bind:value={toolPaths[t.id]}
+            placeholder={t.kind === "file"
+              ? "数据库文件路径,如 ~/.zcode/cli/db/db.sqlite"
+              : "数据目录路径,如 ~/.claude/projects"}
+          />
+          <button
+            class="btn btn-ghost btn-sm"
+            onclick={() => (toolPaths[t.id] = defaultPaths[t.id] ?? "")}
+            disabled={(toolPaths[t.id] ?? "") === (defaultPaths[t.id] ?? "")}
+          >
+            恢复默认
+          </button>
+        </div>
       {/each}
 
       <div class="sub-title">路径过滤</div>
@@ -433,6 +474,9 @@
   }
   .path-row .field {
     flex: 1;
+  }
+  .tool-path-row {
+    margin: 0.35rem 0 0.7rem 1.6rem;
   }
   .path-add {
     margin-top: 0.15rem;

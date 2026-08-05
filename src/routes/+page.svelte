@@ -69,7 +69,7 @@
     collecting = true;
     showConversations = false;
     try {
-      const res = await collectConversations(collectDate, tools, filter);
+      const res = await collectConversations(collectDate, tools, filter, cfg?.toolPaths ?? {});
       collectResult = res;
       if (res.sessions.length === 0) {
         notify("err", `${collectDate} 无对话记录`);

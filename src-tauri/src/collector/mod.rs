@@ -10,6 +10,7 @@
 
 use chrono::{Local, NaiveDate};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 pub mod claude_code;
@@ -117,13 +118,36 @@ impl PathFilterParam {
 pub trait Collector: Send + Sync {
     fn id(&self) -> &'static str;
     fn display_name(&self) -> &'static str;
+    /// 该工具数据源的默认路径(已展开 `~`)。`None` 表示无法定位(如取不到主目录)。
+    /// 仅供「展示默认值」与「无覆盖时回退」使用,错误上抛由 [`Collector::collect`] 决定。
+    fn default_path(&self) -> Option<PathBuf>;
     /// 采集指定本地日期的对话,并按 `filter` 做真实 cwd 路径过滤。
+    /// `custom_path` 非空(去空白后)→ 用它(展开 `~`);否则用 [`Collector::default_path`]。
     /// 返回 (会话摘要, 跳过行数)。
     fn collect(
         &self,
         date: NaiveDate,
         filter: &PathFilter,
+        custom_path: Option<&str>,
     ) -> Result<(Vec<SessionDigest>, usize), String>;
+}
+
+/// 把用户输入的路径串解析为实际路径:展开 `~` / `~/x` / `~\x` 为真实主目录;
+/// 空串(或纯空白)→ `None`(表示「无覆盖,用默认」);其余原样返回。
+///
+/// 各采集器统一按 `custom_path.and_then(expand_home).or_else(default_path)` 解析,
+/// 保证「空覆盖 = 用默认」这一跨层语义在 Rust/TS 两侧一致。
+pub(super) fn expand_home(p: &str) -> Option<PathBuf> {
+    let p = p.trim();
+    if p.is_empty() {
+        return None;
+    }
+    match p {
+        "~" => dirs::home_dir(),
+        s if s.starts_with("~/") => dirs::home_dir().map(|h| h.join(&s[2..])),
+        s if s.starts_with("~\\") => dirs::home_dir().map(|h| h.join(&s[2..])),
+        s => Some(PathBuf::from(s)),
+    }
 }
 
 /// token 估算(经验值:中文 ~1.2 tok/字,ASCII ~0.25 tok/char)。仅作预览参考,不用于计费。
@@ -211,6 +235,7 @@ fn collect_blocking(
     date: &str,
     tools: &[String],
     filter: &PathFilter,
+    tool_paths: &HashMap<String, String>,
 ) -> Result<CollectResult, String> {
     let target = parse_target_date(date);
     let mut result = CollectResult::default();
@@ -218,7 +243,12 @@ fn collect_blocking(
         if !tools.iter().any(|t| t == c.id()) {
             continue; // 未勾选的工具跳过
         }
-        let (sessions, skipped) = c.collect(target, filter)?;
+        // 该工具的自定义数据源路径:取键、去空白、非空才传 Some(~ 由采集器展开)。
+        let custom = tool_paths
+            .get(c.id())
+            .map(|s| s.as_str())
+            .filter(|s| !s.trim().is_empty());
+        let (sessions, skipped) = c.collect(target, filter, custom)?;
         result.skipped_lines += skipped;
         result.sessions.extend(sessions);
     }
@@ -233,18 +263,60 @@ fn collect_blocking(
 /// 采集指定日期、指定工具的本地对话记录。
 ///
 /// - `date`:本地时区的某一天,格式 "YYYY-MM-DD";空串表示今天。
-/// - `tools`:工具 id 列表,支持 "claude-code"、"zcode" 与 "codex"。
+/// - `tools`:工具 id 列表,支持 "claude-code"、"zcode"、"codex" 与 "opencode"。
 /// - `filter`:路径过滤(include/exclude,基于真实 cwd);传空数组等价于不过滤。
+/// - `tool_paths`:各工具的自定义数据源路径(覆盖默认);键缺失或空串 = 用默认。
 #[tauri::command]
 pub async fn collect_conversations(
     date: String,
     tools: Vec<String>,
     filter: PathFilterParam,
+    tool_paths: HashMap<String, String>,
 ) -> Result<CollectResult, String> {
     let filter = filter.normalize();
     let date = date.clone();
     let tools = tools.clone();
-    tokio::task::spawn_blocking(move || collect_blocking(&date, &tools, &filter))
+    tokio::task::spawn_blocking(move || collect_blocking(&date, &tools, &filter, &tool_paths))
         .await
         .map_err(|e| format!("采集任务异常: {e}"))?
+}
+
+/// 返回各采集工具数据源的**默认路径**(已展开 `~`),供设置页展示与「恢复默认」使用。
+/// 键 = 工具 id,值 = 真实路径串;无法定位主目录的工具不出现在结果中。
+#[tauri::command]
+pub fn default_collect_paths() -> HashMap<String, String> {
+    all_collectors()
+        .into_iter()
+        .filter_map(|c| {
+            c.default_path()
+                .map(|p| (c.id().to_string(), p.to_string_lossy().into_owned()))
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::expand_home;
+    use std::path::PathBuf;
+
+    /// `~` / `~/x` / `~\x` 展开为真实主目录;空串与纯空白 → None;绝对/无前缀原样返回。
+    #[test]
+    fn expand_home_tilde_and_plain() {
+        let home = dirs::home_dir().expect("测试环境应能定位主目录");
+
+        // `~` 单独 → 主目录本身。
+        assert_eq!(expand_home("~"), Some(home.clone()));
+        // `~/x` → 主目录下 x(正斜杠)。
+        assert_eq!(expand_home("~/x"), Some(home.join("x")));
+        // `~\x` → 主目录下 x(反斜杠,Windows 写法)。
+        assert_eq!(expand_home("~\\x"), Some(home.join("x")));
+
+        // 空串 / 纯空白 → None(= 无覆盖,用默认)。
+        assert_eq!(expand_home(""), None);
+        assert_eq!(expand_home("   "), None);
+
+        // 绝对路径 / 无 `~` 前缀 → 原样返回(去首尾空白)。
+        assert_eq!(expand_home("D:/work/app"), Some(PathBuf::from("D:/work/app")));
+        assert_eq!(expand_home("  D:\\work  "), Some(PathBuf::from("D:\\work")));
+    }
 }

@@ -332,6 +332,7 @@ mod tests {
                 enabled_tools: vec!["claude-code".into()],
                 include_paths: vec!["D:\\work".into()],
                 exclude_paths: vec!["D:\\secret".into()],
+                tool_paths: Default::default(),
             },
         }
     }

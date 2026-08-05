@@ -32,9 +32,10 @@ pub struct PathFilterParam {
 impl PathFilterParam { pub fn normalize(&self) -> PathFilter }  // trim/去空串/norm
 ```
 
-**采集器 trait**(`Collector::collect` 签名含 `filter`):
+**采集器 trait**(`Collector::collect` 签名含 `filter` + `custom_path`;另有 `default_path`):
 ```rust
-fn collect(&self, date: NaiveDate, filter: &PathFilter)
+fn default_path(&self) -> Option<PathBuf>;   // 该工具默认数据源(已展开 ~)
+fn collect(&self, date: NaiveDate, filter: &PathFilter, custom_path: Option<&str>)
     -> Result<(Vec<SessionDigest>, usize), String>;
 ```
 
@@ -42,10 +43,14 @@ fn collect(&self, date: NaiveDate, filter: &PathFilter)
 ```rust
 #[tauri::command]
 pub async fn collect_conversations(
-    date: String,            // "YYYY-MM-DD",空=今天
-    tools: Vec<String>,      // 工具 id,如 ["claude-code"]
-    filter: PathFilterParam, // 路径过滤;空数组=不过滤
+    date: String,             // "YYYY-MM-DD",空=今天
+    tools: Vec<String>,       // 工具 id,如 ["claude-code"]
+    filter: PathFilterParam,  // 路径过滤;空数组=不过滤
+    tool_paths: HashMap<String, String>, // 各工具自定义数据源路径;键缺失/空串=用默认
 ) -> Result<CollectResult, String>
+
+#[tauri::command]
+pub fn default_collect_paths() -> HashMap<String, String> // 各工具默认数据源(已展开 ~)
 ```
 
 **过滤纯函数**(`claude_code.rs`):
@@ -394,11 +399,73 @@ Connection::open_with_flags(&db, OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::S
 
 ---
 
+## Scenario: 数据源路径可编辑与默认值
+
+> 各采集工具的数据源路径默认硬编码(`home_projects_dir`/`home_sessions_dir`/`db_path`),
+> 用户可经设置页**覆盖**为自定义路径(如工具装在非默认位置)。本场景覆盖覆盖语义、
+> `~` 展开、默认值来源,以及「空覆盖 = 用默认」这一跨层硬契约。**只改数据源定位,
+> 不动过滤/解析/时间切片**(它们仍按各数据源场景的既有契约执行)。
+
+### 1. Scope / Trigger
+修改采集器路径解析、`Collector::collect`/`default_path`、`collect_conversations` 入参、
+或 `CollectConfig.tool_paths` 时遵守本契约。
+
+### 2. Signatures
+```rust
+// collector/mod.rs —— 共享路径解析纯函数
+pub(super) fn expand_home(p: &str) -> Option<PathBuf> // `~`/`~/x`/`~\x`→主目录;空→None
+
+// 各采集器内统一解析:非空覆盖(展开 ~)优先,否则用默认
+let path = custom_path.and_then(super::expand_home).or_else(|| self.default_path());
+```
+`CollectConfig.tool_paths: HashMap<String, String>`(`#[serde(default)]`,键=工具 id,
+值=路径串);TS 侧 `toolPaths: Record<string, string>`。
+
+### 3. Contracts
+
+#### 3g. 数据源路径覆盖(硬契约)
+- **空覆盖 = 用默认(跨层一致)**:`tool_paths` 中键缺失、或值为空串/纯空白 → 用该工具
+  `default_path()`。Rust(`expand_home` 返回 None 即回退默认)与 TS(`saved[t.id] ?? ""`、
+  `storedPath` 等于默认存 `""`)两侧语义必须一致。
+- **`~` 展开(`expand_home`)**:`~` → 主目录;`~/x`、`~\x` → `home.join(x)`;绝对/无前缀
+  路径原样返回(去首尾空白)。**自定义路径支持 `~`,默认路径已由各 `db_path`/`home_*_dir` 展开。**
+- **默认值由后端权威给出**:前端**不得**硬编码默认路径(opencode 有主路径/XDG 回退,只有后端
+  `db_path()` 能给出权威默认)。设置页初值与「恢复默认」均取自 `default_collect_paths()` 命令。
+- **覆盖点**:覆盖只决定「数据源定位」(`base`/`db` 变量),**其后 read_dir / 递归收集 /
+  SQL 查询 / 过滤 / 解析全部沿用各数据源场景的既有契约,不变。**
+- **路径缺失的既有语义保持不变**:claude-code 取不到主目录或目录不可读 → `Err` 上抛;
+  codex 取不到主目录 → `Err`;目录/db 不存在或打开失败 → zcode/codex/opencode `Ok((vec![], 0))`
+  静默跳过。**自定义路径指向不存在位置时,沿用所属工具的上述语义**(claude-code 报错上抛会中断
+  整次采集——这是既有契约,UI 不做存在性预校验以免跨工具连锁误判)。
+- **opencode 默认的双路径回退仅对默认生效**:`default_path()` 走原 `db_path()`(主路径存在用主,
+  否则 XDG 兜底);自定义路径则直连用户指定文件(用户自负)。
+- **向后兼容**:`tool_paths` 全 `#[serde(default)]`;老配置无此字段 → 空 map → 全用默认。
+
+### 4. Validation & Error Matrix
+
+| 条件 | 行为 |
+|------|------|
+| `tool_paths[tool]` 缺失 / 空串 / 纯空白 | 用该工具 `default_path()`(回退默认) |
+| 覆盖为 `~/x` 形式 | `expand_home` 展开为主目录下 `x` |
+| 覆盖为绝对路径 | 原样用作数据源 |
+| claude-code 覆盖目录不可读 | `Err`(上抛,中断整次采集)——既有语义 |
+| zcode/codex/opencode 覆盖路径不存在 | `Ok((vec![], 0))` 静默跳过——既有语义 |
+| 取不到主目录(无覆盖且默认也 None) | claude-code/codex `Err`;zcode/opencode 静默跳过 |
+| 老配置无 `tool_paths` | 空 map,全用默认(`#[serde(default)]`) |
+
+### 5. Tests Required
+`collector/mod.rs` 的 `#[cfg(test)]` 覆盖 `expand_home`:
+- `~` → 主目录;`~/x`、`~\x` → `home.join(x)`。
+- `""` / `"   "` → `None`;绝对路径 / 无前缀 → 原样(去空白)。
+
+---
+
 ## 关联
 - Claude Code 路径过滤任务:`.trellis/tasks/07-10-collect-path-filter/`(prd/design/implement)。
 - ZCode 采集任务:`.trellis/tasks/08-04-zcode-collector/`(prd/design/implement)。
 - Codex 采集任务:`.trellis/tasks/08-04-codex-collector/`(prd/design/implement)。
 - opencode 采集任务:`.trellis/tasks/08-05-opencode-collector/`(prd/design/implement)。
+- 数据源路径可编辑与恢复默认任务:`.trellis/tasks/08-05-collector-paths-editable/`(prd/design/implement)。
 - 字段级内容过滤(策略①,保留 user/assistant 文本 + tool 摘要,丢 tool_result/thinking/reasoning)
   见 `claude_code.rs::extract_line` 与 `zcode.rs::extract_from_parts` 及其单测。
 - opencode 复用 zcode 的纯函数:`zcode.rs::{build_day_lines, extract_from_parts, ms_to_local}`

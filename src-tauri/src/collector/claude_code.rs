@@ -23,12 +23,24 @@ impl Collector for ClaudeCodeCollector {
         "Claude Code"
     }
 
+    fn default_path(&self) -> Option<PathBuf> {
+        home_projects_dir().ok()
+    }
+
     fn collect(
         &self,
         date: NaiveDate,
         filter: &PathFilter,
+        custom_path: Option<&str>,
     ) -> Result<(Vec<SessionDigest>, usize), String> {
-        let base = home_projects_dir()?;
+        // 非空覆盖 → 展开后用之;否则用默认。两者皆空 → 无法定位主目录,上抛(保持既有硬错)。
+        let base = match custom_path
+            .and_then(super::expand_home)
+            .or_else(|| self.default_path())
+        {
+            Some(p) => p,
+            None => return Err("无法定位用户主目录".to_string()),
+        };
         let mut digests = Vec::new();
         let mut skipped = 0usize;
 

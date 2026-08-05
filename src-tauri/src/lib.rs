@@ -47,6 +47,7 @@ pub fn run() {
             llm::test_connection,
             llm::generate_report,
             collector::collect_conversations,
+            collector::default_collect_paths,
             export::export_report,
             export::write_text_file,
         ])
