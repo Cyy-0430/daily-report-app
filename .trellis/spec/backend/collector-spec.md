@@ -1,7 +1,7 @@
 # 采集器数据源与路径过滤契约 (Collector Spec)
 
 > 后端 `src-tauri/src/collector/` 的可执行契约。覆盖 Claude Code / Codex jsonl 数据源、
-> ZCode SQLite 数据源、路径过滤匹配、以及采集命令的跨层参数契约。
+> ZCode / opencode SQLite 数据源、路径过滤匹配、以及采集命令的跨层参数契约。
 
 ## Scenario: 对话采集 + 路径过滤
 
@@ -309,9 +309,97 @@ Connection::open_with_flags(&db, OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::S
 
 ---
 
+## Scenario: opencode (SQLite) 数据源
+
+> opencode(sst/opencode)的对话同样存 SQLite,且与 ZCode **几乎完全同构**
+> (`session` + `message` + `part` 三表,`part.data.type` 同为
+> text/tool/reasoning/step-start/step-finish)。本场景覆盖其与 ZCode 的关键差异:
+> 无 subagent(无 parent_id)、无 sequence 列、工具参数 camelCase、XDG 路径、额外 patch part。
+> opencode 采集器**复用** ZCode 的 `build_day_lines` / `extract_from_parts` /
+> `date_matches` / `ms_to_local` 纯函数,只新写 `collect` 与 `db_path`。
+
+### 1. Scope / Trigger
+修改 `opencode.rs`、新增基于 SQLite 的采集器、或读取 opencode `opencode.db` 字段时遵守本契约。
+
+### 2. Signatures
+**数据源路径**:`~/.local/share/opencode/opencode.db`,入口 `opencode::db_path()`
+(opencode 跨平台统一用 Unix 风格 `$HOME/.local/share`,**不走** Windows `%LOCALAPPDATA%`;
+回退 `data_local_dir()` 兜底 XDG)。
+
+**只读打开**(同 ZCode):
+```rust
+Connection::open_with_flags(&db, OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX)
+```
+
+**采集器**:`OpencodeCollector`(`id="opencode"`,`display_name="Opencode"`),复用
+`claude_code::session_allowed` 与 `zcode::{build_day_lines, extract_from_parts, ...}`。
+
+**三张核心表**(与 ZCode 同构,实测):
+- `session`:`id` / `directory`(真实 cwd) / `title` / `time_created`(Unix 毫秒)。**无 `parent_id`。**
+- `message`:`session_id` / `time_created`(Unix 毫秒) / `data`(`{role:"user"|"assistant",...}`)。**无 `sequence`。**
+- `part`:`message_id` / `data`(`{type:"text"|"tool"|"reasoning"|"step-start"|"step-finish"|"patch",...}`)。**无 `sequence`。**
+
+### 3. Contracts
+
+#### 3f. opencode SQLite 数据源(硬契约)
+- **全 session 采集**(无主/sub 区分):opencode **没有** `parent_id` 列,所有 session 都是
+  用户直接交互(无 ZCode 那种 subagent 噪声),一律采集。
+- **排序键 = `time_created`**(硬差异):opencode 的 message/part 表**没有 `sequence` 列**
+  (与 ZCode 不同),`ORDER BY time_created` 升序(实测同 message 内单调递增)。
+- **真实 cwd 来自 `session.directory`**:直接喂 `session_allowed`,沿用 §3b 组件级前缀 / 排除优先。
+- **时间过滤(硬契约)**:按 `message.time_created`(**Unix 毫秒**)转本地时区→比 date;
+  绝不按文件 mtime(session 跨天累积,同 session 按目标日切片)。
+- **字段过滤(策略①)**:复用 `zcode::extract_from_parts`——`part.type=text` → 文本(`data.text`);
+  `part.type=tool` → `"{data.tool}: {key}"`;`reasoning`/`step-*`/`file`/**`patch`** 一律丢弃。
+- **工具参数 camelCase(硬差异,关键)**:opencode 的 `state.input` 用 **camelCase**(`filePath`/
+  `command`/`pattern`/`description`),而 ZCode 用 snake_case。`extract_from_parts` 的 key 回退链
+  **同时列两套**(`file_path`→`filePath`→`path`→`command`→...)兼容两者——ZCode 数据只命中
+  snake_case,opencode 数据只命中 camelCase,互不干扰。
+- **`patch` part 丢弃**:opencode 特有的代码补丁 part(`{type:"patch",path,content}`),
+  等同 tool_result 全文,丢入 `_ => {}` 分支(与 ZCode 的 `file` 同处理)。
+- **只读访问**:`READ_ONLY | NO_MUTEX` 打开,不写入、不阻塞 opencode 进程。
+- **project 显示名**:`session.title`(opencode 标题质量高,如"提交 vin-finance-map 业务代码并
+  同步分支"),空回退 `directory` basename,再回退 session_id。
+- **role**:`message.data.role`(`"assistant"`→Assistant,其余→User)。
+
+#### 与 ZCode 的关键差异(实现/维护时对照——两者 SQLite schema 高度同构)
+| 维度 | ZCode | opencode |
+|---|---|---|
+| db 路径 | `~/.zcode/cli/db/db.sqlite` | `~/.local/share/opencode/opencode.db`(XDG 风格) |
+| 主/sub 区分 | `parent_id IS NULL` 过滤 subagent | **无 parent_id**,全采 |
+| 排序列 | `ORDER BY sequence` | **无 sequence**,`ORDER BY time_created` |
+| 工具参数字段 | snake_case(`file_path`) | **camelCase**(`filePath`) |
+| 额外丢弃 part | `file` | `file` + **`patch`**(代码补丁) |
+| 纯函数 | 自持 | **复用 zcode 的 `build_day_lines`/`extract_from_parts`/`ms_to_local`** |
+
+不变量(与 ZCode 共享):策略①字段过滤、按 `message.time_created` 毫秒做日期过滤(跨天切片)、
+真实 cwd 组件级前缀匹配、排除优先、未装/读取失败静默跳过 `Ok((vec![], 0))`。
+
+### 4. Validation & Error Matrix
+
+| 条件 | 行为 |
+|------|------|
+| `~/.local/share/opencode/opencode.db` 不存在 / 打开失败 | 返回 `Ok((vec![], 0))` **静默跳过**(不阻断其它采集器) |
+| `message.time_created` 落目标 date(本地) | 进入解析;否则跳过(跨天切片,不计 skipped) |
+| `part.data` JSON 非法 | 计入 `skipped_lines`,跳过该 part |
+| cwd 命中黑名单 / 不在白名单 | 整 session 被丢弃(不计 skipped) |
+
+### 5. Tests Required
+`opencode.rs` 的 `#[cfg(test)]` 必须覆盖(重点钉**差异点**):
+- `extract_from_parts`(复用 zcode 的):`text`→文本;`tool` + **camelCase input**(`filePath`/`command`)→
+  `"{name}: {key}"`;`reasoning`/`step-*`/`patch`→丢弃;混合留 text+tool。
+- `build_day_lines`(复用 zcode 的)跨天切片:目标日只留当日 message;目标日无 message → 空。
+- `db_path`:命中真实存在的 `~/.local/share/opencode/opencode.db`,父目录以 opencode 收尾。
+- 端到端:`collect_real_opencode_sample_day`(ignored,需本机 db)对真实 SQLite 采集(2026-08-03 已知会话)。
+
+---
+
 ## 关联
 - Claude Code 路径过滤任务:`.trellis/tasks/07-10-collect-path-filter/`(prd/design/implement)。
 - ZCode 采集任务:`.trellis/tasks/08-04-zcode-collector/`(prd/design/implement)。
 - Codex 采集任务:`.trellis/tasks/08-04-codex-collector/`(prd/design/implement)。
+- opencode 采集任务:`.trellis/tasks/08-05-opencode-collector/`(prd/design/implement)。
 - 字段级内容过滤(策略①,保留 user/assistant 文本 + tool 摘要,丢 tool_result/thinking/reasoning)
   见 `claude_code.rs::extract_line` 与 `zcode.rs::extract_from_parts` 及其单测。
+- opencode 复用 zcode 的纯函数:`zcode.rs::{build_day_lines, extract_from_parts, ms_to_local}`
+  均 `pub(super)`;camelCase 工具参数回退链(`filePath` 等)在 `extract_from_parts` 内两套兼容。

@@ -21,6 +21,9 @@ pub use zcode::ZCodeCollector;
 pub mod codex;
 pub use codex::CodexCollector;
 
+pub mod opencode;
+pub use opencode::OpencodeCollector;
+
 /// 对话角色。
 #[derive(Debug, Clone, Copy, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -199,6 +202,7 @@ fn all_collectors() -> Vec<Box<dyn Collector>> {
         Box::new(ClaudeCodeCollector),
         Box::new(ZCodeCollector),
         Box::new(CodexCollector),
+        Box::new(OpencodeCollector),
     ]
 }
 

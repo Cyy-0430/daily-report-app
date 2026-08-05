@@ -179,24 +179,27 @@ fn db_path() -> Option<PathBuf> {
 }
 
 /// Unix 毫秒 → 本地时区时间。无效值返回 None。
-fn ms_to_local(ms: i64) -> Option<DateTime<Local>> {
+pub(super) fn ms_to_local(ms: i64) -> Option<DateTime<Local>> {
     Local.timestamp_millis_opt(ms).single()
 }
 
-/// 该毫秒是否落在目标本地日期(硬契约:按 message 时间,非文件 mtime)。
-fn date_matches(ms: i64, date: NaiveDate) -> bool {
+/// 该毫秒是否落在目标本地日期(硬契约:按消息时间,非文件 mtime)。
+pub(super) fn date_matches(ms: i64, date: NaiveDate) -> bool {
     ms_to_local(ms)
         .map(|t| t.date_naive() == date)
         .unwrap_or(false)
 }
 
-/// 从一个 session 的全部 message 行(已按 sequence 取齐 parts)构建**目标日期**
+/// 从一个 session 的全部 message 行(已按时间顺序取齐 parts)构建**目标日期**
 /// 的对话行,并返回当天首/末毫秒。纯函数,便于单测跨天切片与时间过滤。
 ///
 /// - 非目标日期的 message 整条跳过(不计入 lines);
 /// - 每条 message 的 role 取自 `data.role`,内容取自其 parts(策略①);
 /// - 无有效文本且无工具调用的 message 跳过。
-fn build_day_lines(
+///
+/// `pub(super)` 供同构的 opencode 采集器复用(ZCode 按 `sequence` 排、opencode 按
+/// `time_created` 排,但进入此函数时 parts 已是顺序数组,函数本身与排序键无关)。
+pub(super) fn build_day_lines(
     msgs: &[(i64, Value, Vec<Value>)],
     date: NaiveDate,
 ) -> (Vec<ConversationLine>, Option<i64>, Option<i64>) {
@@ -230,8 +233,12 @@ fn build_day_lines(
 }
 
 /// 策略①字段过滤:从一条 message 的 parts 提取 (文本, 工具摘要)。
-/// 无有效内容返回 None。丢弃 `reasoning`/`step-*`/`file`;`tool` 仅留 name + 关键参数。
-fn extract_from_parts(parts: &[Value]) -> Option<(String, Vec<String>)> {
+/// 无有效内容返回 None。丢弃 `reasoning`/`step-*`/`file`/`patch`;`tool` 仅留 name + 关键参数。
+///
+/// `pub(super)` 供同构的 opencode 采集器复用。工具参数 key 回退链**同时兼容
+/// snake_case 与 camelCase**:ZCode 用 `file_path`,opencode 用 `filePath`;
+/// 两套都列出,实际命中哪套取决于数据源,互不干扰。
+pub(super) fn extract_from_parts(parts: &[Value]) -> Option<(String, Vec<String>)> {
     let mut texts = Vec::new();
     let mut tools = Vec::new();
     for p in parts {
@@ -249,6 +256,7 @@ fn extract_from_parts(parts: &[Value]) -> Option<(String, Vec<String>)> {
                 let inp = &p["state"]["input"];
                 let key = inp["file_path"]
                     .as_str()
+                    .or_else(|| inp["filePath"].as_str())
                     .or_else(|| inp["path"].as_str())
                     .or_else(|| inp["command"].as_str())
                     .or_else(|| inp["pattern"].as_str())
@@ -262,7 +270,7 @@ fn extract_from_parts(parts: &[Value]) -> Option<(String, Vec<String>)> {
                     format!("{name}: {key}")
                 });
             }
-            _ => {} // reasoning / step-start / step-finish / file → 丢弃
+            _ => {} // reasoning / step-start / step-finish / file / patch → 丢弃
         }
     }
     if texts.is_empty() && tools.is_empty() {
@@ -333,6 +341,17 @@ mod tests {
         let (text, tools) = extract_from_parts(&parts).expect("应有内容");
         assert_eq!(text, "好的,我开始");
         assert_eq!(tools, vec!["Read: src/a.ts"]);
+    }
+
+    /// 策略①:tool input 的 camelCase 字段(`filePath`)同样命中(为 opencode 兼容,
+    /// 见函数注释;ZCode 自身用 snake_case,此处钉死兼容回退不会回归)。
+    #[test]
+    fn extract_tool_part_camelcase_input() {
+        let parts = vec![v(
+            r#"{"type":"tool","tool":"read","state":{"input":{"filePath":"src/a.ts"}}}"#,
+        )];
+        let (_, tools) = extract_from_parts(&parts).expect("应有内容");
+        assert_eq!(tools, vec!["read: src/a.ts"]);
     }
 
     /// 时间硬契约:毫秒 → 本地日期判定(隐含跨天:同一 ms 在不同 date 判定不同)。
