@@ -72,3 +72,24 @@
 ### Next Steps
 
 - None - task complete
+
+
+## Session 3: 周报生成(区间采集 + map-reduce 摘要)
+
+**Date**: 2026-08-06
+**Task**: 周报生成(区间采集 + map-reduce 摘要)
+**Branch**: `main`
+
+### Summary
+
+新增周报功能:区间采集命令 collect_conversations_range(逐日单日切片,collector trait 不变)+ generate_weekly_report(map-reduce:逐日摘要重试3次指数退避失败跳过标注缺失→reduce 整周凝练流式汇总→落库历史)。StreamChunk 加 progress 变体;周报模板可配置(weeklyMapTemplate/weeklyReduceTemplate,settings 双模板区,空配置 Rust 内嵌兜底);新路由 /weekly(本周一~今天默认区间+可选补充要点+单日token预警+进度条);输出/导出面板抽共享组件 ReportPanel 日报复用。同步 collector-spec/storage-spec。cargo test 66 通过,pnpm check 0 错误 0 警告。trellis-check 验证 AC1-AC9 全 PASS。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `9f72dc8` | (see git log) |
+
+### Status
+
+[OK] **Completed**
