@@ -19,9 +19,11 @@
   let api = $state<ApiConfig>({ baseUrl: "", apiKey: "", model: "" });
   let template = $state(DEFAULT_PROMPT_TEMPLATE);
   let customDefault = $state("");
-  // 周报双模板:每日摘要(map) + 整周汇总(reduce)。
+  // 周报双模板:每日摘要(map) + 整周汇总(reduce)。weeklyDef* = 各自的「自定义默认」。
   let weeklyMap = $state(DEFAULT_WEEKLY_MAP_TEMPLATE);
   let weeklyReduce = $state(DEFAULT_WEEKLY_REDUCE_TEMPLATE);
+  let weeklyDefMap = $state("");
+  let weeklyDefReduce = $state("");
   let exportDir = $state("");
   // 各采集工具的勾选状态(按 COLLECT_TOOLS 渲染,id 与 Rust all_collectors() 对齐)。
   let toolEnabled = $state<Record<string, boolean>>({});
@@ -43,6 +45,8 @@
     customDefault = c.customDefaultTemplate || "";
     weeklyMap = c.weeklyMapTemplate || DEFAULT_WEEKLY_MAP_TEMPLATE;
     weeklyReduce = c.weeklyReduceTemplate || DEFAULT_WEEKLY_REDUCE_TEMPLATE;
+    weeklyDefMap = c.weeklyDefaultMapTemplate || "";
+    weeklyDefReduce = c.weeklyDefaultReduceTemplate || "";
     exportDir = c.exportDir;
     const tools = c.collectConfig?.enabledTools ?? [];
     toolEnabled = Object.fromEntries(COLLECT_TOOLS.map((t) => [t.id, tools.includes(t.id)]));
@@ -120,6 +124,38 @@
 
   function resetTemplate() {
     template = customDefault || DEFAULT_PROMPT_TEMPLATE;
+  }
+
+  async function setWeeklyMapDefault() {
+    try {
+      const cur = await loadConfig();
+      cur.weeklyDefaultMapTemplate = weeklyMap;
+      await saveConfig(cur);
+      weeklyDefMap = weeklyMap;
+      notify("ok", "已设为默认");
+    } catch (e) {
+      notify("err", String(e));
+    }
+  }
+
+  function resetWeeklyMap() {
+    weeklyMap = weeklyDefMap || DEFAULT_WEEKLY_MAP_TEMPLATE;
+  }
+
+  async function setWeeklyReduceDefault() {
+    try {
+      const cur = await loadConfig();
+      cur.weeklyDefaultReduceTemplate = weeklyReduce;
+      await saveConfig(cur);
+      weeklyDefReduce = weeklyReduce;
+      notify("ok", "已设为默认");
+    } catch (e) {
+      notify("err", String(e));
+    }
+  }
+
+  function resetWeeklyReduce() {
+    weeklyReduce = weeklyDefReduce || DEFAULT_WEEKLY_REDUCE_TEMPLATE;
   }
 
   async function test() {
@@ -235,39 +271,33 @@
         跨天归纳成周报(reduce)。
       </p>
 
-      <div class="sub-title">每日摘要模板(map)</div>
+      <div class="sec-title-row">
+        <div class="sub-title">每日摘要模板(map)</div>
+        <div class="sec-actions-row">
+          <button class="btn btn-ghost btn-sm" onclick={setWeeklyMapDefault}>设为默认</button>
+          <button class="btn btn-ghost btn-sm" onclick={resetWeeklyMap}>恢复默认</button>
+        </div>
+      </div>
       <p class="sec-hint">
         变量:<code class="var">{"{{date}}"}</code>(当天,如 8.4)、<code class="var"
           >{"{{conversations}}"}</code
         >(当日对话)
       </p>
       <textarea bind:value={weeklyMap} class="field code tmpl"></textarea>
-      <div class="sec-actions">
-        <button
-          class="btn btn-ghost btn-sm"
-          onclick={() => (weeklyMap = DEFAULT_WEEKLY_MAP_TEMPLATE)}
-          disabled={weeklyMap === DEFAULT_WEEKLY_MAP_TEMPLATE}
-        >
-          恢复默认
-        </button>
-      </div>
 
-      <div class="sub-title">整周汇总模板(reduce)</div>
+      <div class="sec-title-row">
+        <div class="sub-title">整周汇总模板(reduce)</div>
+        <div class="sec-actions-row">
+          <button class="btn btn-ghost btn-sm" onclick={setWeeklyReduceDefault}>设为默认</button>
+          <button class="btn btn-ghost btn-sm" onclick={resetWeeklyReduce}>恢复默认</button>
+        </div>
+      </div>
       <p class="sec-hint">
         变量:<code class="var">{"{{date_range}}"}</code>(区间,如 8.4–8.10)、<code class="var"
           >{"{{input}}"}</code
         >(本周补充要点)、<code class="var">{"{{day_summaries}}"}</code>(各日摘要)
       </p>
       <textarea bind:value={weeklyReduce} class="field code tmpl"></textarea>
-      <div class="sec-actions">
-        <button
-          class="btn btn-ghost btn-sm"
-          onclick={() => (weeklyReduce = DEFAULT_WEEKLY_REDUCE_TEMPLATE)}
-          disabled={weeklyReduce === DEFAULT_WEEKLY_REDUCE_TEMPLATE}
-        >
-          恢复默认
-        </button>
-      </div>
     </section>
 
     <!-- C · 导出 -->

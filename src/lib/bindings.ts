@@ -35,6 +35,10 @@ export interface AppConfig {
   weeklyMapTemplate: string;
   /** 周报 reduce(整周汇总)提示词;空串 = 用内置默认。 */
   weeklyReduceTemplate: string;
+  /** 周报 map 模板的「自定义默认」(设置页「设为默认」写入;空 = 恢复时回退内置默认)。 */
+  weeklyDefaultMapTemplate: string;
+  /** 周报 reduce 模板的「自定义默认」。 */
+  weeklyDefaultReduceTemplate: string;
   exportDir: string;
   collectConfig: CollectConfig;
 }
@@ -124,6 +128,8 @@ export function emptyConfig(): AppConfig {
     customDefaultTemplate: "",
     weeklyMapTemplate: "",
     weeklyReduceTemplate: "",
+    weeklyDefaultMapTemplate: "",
+    weeklyDefaultReduceTemplate: "",
     exportDir: "",
     collectConfig: {
       enabledTools: ["claude-code", "zcode", "codex", "opencode"],

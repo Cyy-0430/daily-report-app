@@ -222,21 +222,15 @@
     display: flex;
     flex-direction: column;
   }
-  .panel-head {
+  /* 与日报页一致的局部覆盖:head 只覆盖 flex/gap,其余(padding/min-height/边框)
+     走 app.css 全局 .panel-head;label 不覆盖,走全局 .panel-label。 */
+  .panel:first-child .panel-head {
     display: flex;
     align-items: center;
     gap: 0.6rem;
-    padding: 0.8rem 1.15rem;
-    border-bottom: 1px solid var(--line);
-  }
-  .panel-label {
-    font-family: var(--mono);
-    font-size: 0.8rem;
-    color: var(--ink-soft);
-    letter-spacing: 0.04em;
   }
   .range-pick {
-    margin-left: auto;
+    margin-left: auto; /* 对应日报 head 里 collect-date 的 margin-left:auto */
     display: flex;
     align-items: center;
     gap: 0.4rem;
@@ -344,13 +338,7 @@
   .editor-textarea::placeholder {
     color: var(--ink-faint);
   }
-  .panel-foot {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0.6rem 1.15rem;
-    border-top: 1px solid var(--line);
-  }
+  /* panel-foot 不覆盖,走 app.css 全局(padding 0 1rem / min-height 48px / space-between)。 */
   .meta {
     font-family: var(--mono);
     font-size: 0.74rem;

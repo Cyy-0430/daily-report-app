@@ -419,36 +419,59 @@ pub async fn generate_weekly_report(
         .map(|(d, r)| (d, r.rendered_text))
         .collect();
 
-    // ② map:逐日摘要(重试3次,失败跳过并记录)。
+    // ② map:逐日摘要(**并发** MAP_CONCURRENCY 路,每批重试3次,失败跳过并记录)。
+    // 并发只加速请求往返;结果按原始日期顺序收集,reduce 输入仍保持时间升序。
+    // 进度 current = 已完成批数(完成顺序乱序,进度条平滑推进)。
+    const MAP_CONCURRENCY: usize = 3;
     let map_tpl = if cfg.weekly_map_template.trim().is_empty() {
         WEEKLY_MAP_PROMPT
     } else {
         cfg.weekly_map_template.as_str()
     };
     let total = days.len();
-    let mut summaries: Vec<String> = Vec::new();
+    let mut summaries: Vec<Option<String>> = vec![None; total];
     let mut missing: Vec<String> = Vec::new();
-    for (i, (d, conv)) in days.iter().enumerate() {
-        let _ = on_event.send(StreamChunk::Progress {
-            stage: "map".into(),
-            current: i + 1,
-            total,
-            message: format!("摘要 {}", d.format("%m-%d")),
-        });
-        let prompt = render_weekly_map(map_tpl, &date_md(*d), conv);
-        match complete_with_retry(api, &prompt, RETRIES).await {
-            Ok(s) => summaries.push(format!("### {}（{}）\n{}", date_md(*d), d.format("%Y-%m-%d"), s)),
+    let mut done = 0usize;
+    // 先急切收集 future(自包含、owned),再 buffer_unordered 限并发——闭包不再依赖
+    // 迭代项的生命周期,避免 FnOnce 泛化错误。
+    let tasks: Vec<_> = days
+        .iter()
+        .enumerate()
+        .map(|(i, (d, conv))| {
+            let prompt = render_weekly_map(map_tpl, &date_md(*d), conv);
+            let api_ref = api;
+            let day = *d;
+            async move {
+                let res = complete_with_retry(api_ref, &prompt, RETRIES).await;
+                (i, day, res)
+            }
+        })
+        .collect();
+    let mut stream = futures_util::stream::iter(tasks).buffer_unordered(MAP_CONCURRENCY);
+    while let Some((i, d, res)) = stream.next().await {
+        done += 1;
+        match res {
+            Ok(s) => {
+                summaries[i] = Some(format!("### {}（{}）\n{}", date_md(d), d.format("%Y-%m-%d"), s));
+                let _ = on_event.send(StreamChunk::Progress {
+                    stage: "map".into(),
+                    current: done,
+                    total,
+                    message: format!("摘要 {} 完成", d.format("%m-%d")),
+                });
+            }
             Err(_) => {
                 missing.push(d.format("%Y-%m-%d").to_string());
                 let _ = on_event.send(StreamChunk::Progress {
                     stage: "map".into(),
-                    current: i + 1,
+                    current: done,
                     total,
                     message: format!("跳过 {}（失败）", d.format("%m-%d")),
                 });
             }
         }
     }
+    let summaries: Vec<String> = summaries.into_iter().flatten().collect();
 
     // ③ reduce 前置校验:完全无素材则报错。
     if summaries.is_empty() && weekly_input.trim().is_empty() {

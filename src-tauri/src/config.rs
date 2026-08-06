@@ -81,6 +81,12 @@ pub struct AppConfig {
     /// 周报 reduce(整周汇总)提示词;空串 → 内嵌默认兜底。
     #[serde(default)]
     pub weekly_reduce_template: String,
+    /// 周报 map 模板的「自定义默认」(设置页「设为默认」写入;「恢复默认」优先于此)。
+    #[serde(default)]
+    pub weekly_default_map_template: String,
+    /// 周报 reduce 模板的「自定义默认」。
+    #[serde(default)]
+    pub weekly_default_reduce_template: String,
     #[serde(default)]
     pub export_dir: String,
     #[serde(default)]

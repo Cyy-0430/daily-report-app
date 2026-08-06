@@ -70,7 +70,7 @@ pub fn get_meta(conn: &Connection, key: &str) -> Result<Option<String>, String>
 ### 3. Contracts
 
 #### 3a. 配置 KV 模型
-- `config` 表为 KV:`key` ∈ {`api_config`,`prompt_template`,`custom_default_template`,`weekly_map_template`,`weekly_reduce_template`,`export_dir`,`collect_config`}。
+- `config` 表为 KV:`key` ∈ {`api_config`,`prompt_template`,`custom_default_template`,`weekly_map_template`,`weekly_reduce_template`,`weekly_default_map_template`,`weekly_default_reduce_template`,`export_dir`,`collect_config`}。
 - **`value` 一律存 JSON 序列化值**(`serde_json::to_string`):string 字段存带引号 JSON 串,struct 存 JSON object。读写统一走 serde,新增配置项无需 `ALTER TABLE`。
 - `get_config`:缺失 key 回填 `AppConfig::default()`(`#[serde(default)]`);`CollectConfig` 默认 `enabled_tools=["claude-code"]`。
 

@@ -102,19 +102,7 @@
     display: flex;
     flex-direction: column;
   }
-  .panel-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0.8rem 1.15rem;
-    border-bottom: 1px solid var(--line);
-  }
-  .panel-label {
-    font-family: var(--mono);
-    font-size: 0.8rem;
-    color: var(--ink-soft);
-    letter-spacing: 0.04em;
-  }
+  /* .panel-head / .panel-label 不覆盖,走 app.css 全局(与原日报右侧面板一致)。 */
   .head-actions {
     display: flex;
     gap: 0.4rem;
