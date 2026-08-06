@@ -75,6 +75,12 @@ pub struct AppConfig {
     pub prompt_template: String,
     #[serde(default)]
     pub custom_default_template: String,
+    /// 周报 map(每日摘要)提示词;空串 → 内嵌默认兜底。
+    #[serde(default)]
+    pub weekly_map_template: String,
+    /// 周报 reduce(整周汇总)提示词;空串 → 内嵌默认兜底。
+    #[serde(default)]
+    pub weekly_reduce_template: String,
     #[serde(default)]
     pub export_dir: String,
     #[serde(default)]

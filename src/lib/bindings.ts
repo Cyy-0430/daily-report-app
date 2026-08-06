@@ -31,6 +31,10 @@ export interface AppConfig {
   apiConfig: ApiConfig;
   promptTemplate: string;
   customDefaultTemplate: string;
+  /** 周报 map(每日摘要)提示词;空串 = 用内置默认。 */
+  weeklyMapTemplate: string;
+  /** 周报 reduce(整周汇总)提示词;空串 = 用内置默认。 */
+  weeklyReduceTemplate: string;
   exportDir: string;
   collectConfig: CollectConfig;
 }
@@ -38,7 +42,14 @@ export interface AppConfig {
 export type StreamChunk =
   | { type: "delta"; text: string }
   | { type: "done" }
-  | { type: "error"; message: string };
+  | { type: "error"; message: string }
+  | {
+      type: "progress";
+      stage: "map" | "reduce";
+      current: number;
+      total: number;
+      message: string;
+    };
 
 export interface ConversationLine {
   ts: string;
@@ -63,6 +74,24 @@ export interface CollectResult {
   sessions: SessionDigest[];
   renderedText: string;
   estTokens: number;
+  skippedLines: number;
+}
+
+/** 区间采集的单日结果(周报 map 的一个批次)。 */
+export interface DayCollect {
+  /** "YYYY-MM-DD"。 */
+  date: string;
+  sessions: SessionDigest[];
+  /** 当日渲染后的对话文本(喂给 map 摘要)。 */
+  renderedText: string;
+  estTokens: number;
+}
+
+/** 区间采集结果:逐日明细 + 总 token(供 /weekly 预览/预算,不耗 LLM)。 */
+export interface RangeCollectResult {
+  /** 按日期升序;无对话的日期也保留(estTokens=0)。 */
+  days: DayCollect[];
+  totalTokens: number;
   skippedLines: number;
 }
 
@@ -93,6 +122,8 @@ export function emptyConfig(): AppConfig {
     apiConfig: { baseUrl: "", apiKey: "", model: "" },
     promptTemplate: "",
     customDefaultTemplate: "",
+    weeklyMapTemplate: "",
+    weeklyReduceTemplate: "",
     exportDir: "",
     collectConfig: {
       enabledTools: ["claude-code", "zcode", "codex", "opencode"],
@@ -126,6 +157,26 @@ export const collectConversations = (
   toolPaths: Record<string, string>,
 ) => invoke<CollectResult>("collect_conversations", { date, tools, filter, toolPaths });
 
+/**
+ * 采集区间(含首尾)内逐日的对话记录。逐日单日切片采集,每日一个 DayCollect
+ * (周报 map 的一个批次)。仅本地 IO,无 LLM。
+ * start/end 为 "YYYY-MM-DD",空串表示今天;end<start 时后端自动交换。
+ */
+export const collectConversationsRange = (
+  start: string,
+  end: string,
+  tools: string[],
+  filter: PathFilter,
+  toolPaths: Record<string, string>,
+) =>
+  invoke<RangeCollectResult>("collect_conversations_range", {
+    start,
+    end,
+    tools,
+    filter,
+    toolPaths,
+  });
+
 /** 历史记录(独立于配置,存于 SQLite)。 */
 export const listHistory = () => invoke<HistoryItem[]>("list_history");
 export const addHistory = (item: HistoryItem) => invoke<void>("add_history", { item });
@@ -140,4 +191,31 @@ export function generateReport(
   const channel = new Channel<StreamChunk>();
   channel.onmessage = onMessage;
   return invoke<HistoryItem>("generate_report", { input, conversations, onEvent: channel });
+}
+
+/**
+ * 流式生成周报(map-reduce):区间采集→逐日摘要(map)→整周汇总(reduce)。
+ * onMessage 回调 delta(最终周报逐字)、progress(正在摘要第 X/N 天 / 正在汇总)、
+ * done、error。成功时返回已保存的 HistoryItem。
+ */
+export function generateWeeklyReport(
+  start: string,
+  end: string,
+  tools: string[],
+  filter: PathFilter,
+  toolPaths: Record<string, string>,
+  weeklyInput: string,
+  onMessage: (chunk: StreamChunk) => void,
+): Promise<HistoryItem> {
+  const channel = new Channel<StreamChunk>();
+  channel.onmessage = onMessage;
+  return invoke<HistoryItem>("generate_weekly_report", {
+    start,
+    end,
+    tools,
+    filter,
+    toolPaths,
+    weeklyInput,
+    onEvent: channel,
+  });
 }

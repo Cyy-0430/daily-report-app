@@ -9,12 +9,19 @@
     type ApiConfig,
   } from "$lib/bindings";
   import { config, notify } from "$lib/store";
-  import { DEFAULT_PROMPT_TEMPLATE } from "$lib/template";
+  import {
+    DEFAULT_PROMPT_TEMPLATE,
+    DEFAULT_WEEKLY_MAP_TEMPLATE,
+    DEFAULT_WEEKLY_REDUCE_TEMPLATE,
+  } from "$lib/template";
   import { open } from "@tauri-apps/plugin-dialog";
 
   let api = $state<ApiConfig>({ baseUrl: "", apiKey: "", model: "" });
   let template = $state(DEFAULT_PROMPT_TEMPLATE);
   let customDefault = $state("");
+  // 周报双模板:每日摘要(map) + 整周汇总(reduce)。
+  let weeklyMap = $state(DEFAULT_WEEKLY_MAP_TEMPLATE);
+  let weeklyReduce = $state(DEFAULT_WEEKLY_REDUCE_TEMPLATE);
   let exportDir = $state("");
   // 各采集工具的勾选状态(按 COLLECT_TOOLS 渲染,id 与 Rust all_collectors() 对齐)。
   let toolEnabled = $state<Record<string, boolean>>({});
@@ -34,6 +41,8 @@
     api = { ...c.apiConfig };
     template = c.promptTemplate || DEFAULT_PROMPT_TEMPLATE;
     customDefault = c.customDefaultTemplate || "";
+    weeklyMap = c.weeklyMapTemplate || DEFAULT_WEEKLY_MAP_TEMPLATE;
+    weeklyReduce = c.weeklyReduceTemplate || DEFAULT_WEEKLY_REDUCE_TEMPLATE;
     exportDir = c.exportDir;
     const tools = c.collectConfig?.enabledTools ?? [];
     toolEnabled = Object.fromEntries(COLLECT_TOOLS.map((t) => [t.id, tools.includes(t.id)]));
@@ -55,6 +64,8 @@
         ...cur,
         apiConfig: { ...api },
         promptTemplate: template,
+        weeklyMapTemplate: weeklyMap,
+        weeklyReduceTemplate: weeklyReduce,
         exportDir,
         collectConfig: {
           enabledTools: COLLECT_TOOLS.filter((t) => toolEnabled[t.id]).map((t) => t.id),
@@ -214,6 +225,49 @@
         >（左侧输入内容）
       </p>
       <textarea bind:value={template} class="field code tmpl"></textarea>
+    </section>
+
+    <!-- B2 · 周报模板 -->
+    <section class="panel sec">
+      <div class="sec-title"><span class="num">B₂</span>周报模板</div>
+      <p class="sec-hint">
+        周报分两步:先用「每日摘要模板」把区间内每天的对话各提炼一次(map),再用「整周汇总模板」
+        跨天归纳成周报(reduce)。
+      </p>
+
+      <div class="sub-title">每日摘要模板(map)</div>
+      <p class="sec-hint">
+        变量:<code class="var">{"{{date}}"}</code>(当天,如 8.4)、<code class="var"
+          >{"{{conversations}}"}</code
+        >(当日对话)
+      </p>
+      <textarea bind:value={weeklyMap} class="field code tmpl"></textarea>
+      <div class="sec-actions">
+        <button
+          class="btn btn-ghost btn-sm"
+          onclick={() => (weeklyMap = DEFAULT_WEEKLY_MAP_TEMPLATE)}
+          disabled={weeklyMap === DEFAULT_WEEKLY_MAP_TEMPLATE}
+        >
+          恢复默认
+        </button>
+      </div>
+
+      <div class="sub-title">整周汇总模板(reduce)</div>
+      <p class="sec-hint">
+        变量:<code class="var">{"{{date_range}}"}</code>(区间,如 8.4–8.10)、<code class="var"
+          >{"{{input}}"}</code
+        >(本周补充要点)、<code class="var">{"{{day_summaries}}"}</code>(各日摘要)
+      </p>
+      <textarea bind:value={weeklyReduce} class="field code tmpl"></textarea>
+      <div class="sec-actions">
+        <button
+          class="btn btn-ghost btn-sm"
+          onclick={() => (weeklyReduce = DEFAULT_WEEKLY_REDUCE_TEMPLATE)}
+          disabled={weeklyReduce === DEFAULT_WEEKLY_REDUCE_TEMPLATE}
+        >
+          恢复默认
+        </button>
+      </div>
     </section>
 
     <!-- C · 导出 -->

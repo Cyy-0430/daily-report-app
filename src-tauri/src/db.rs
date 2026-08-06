@@ -92,6 +92,12 @@ pub fn get_config(conn: &Connection) -> Result<AppConfig, String> {
     if let Some(v) = get_kv(conn, "custom_default_template")? {
         cfg.custom_default_template = serde_json::from_str(&v).map_err(|e| e.to_string())?;
     }
+    if let Some(v) = get_kv(conn, "weekly_map_template")? {
+        cfg.weekly_map_template = serde_json::from_str(&v).map_err(|e| e.to_string())?;
+    }
+    if let Some(v) = get_kv(conn, "weekly_reduce_template")? {
+        cfg.weekly_reduce_template = serde_json::from_str(&v).map_err(|e| e.to_string())?;
+    }
     if let Some(v) = get_kv(conn, "export_dir")? {
         cfg.export_dir = serde_json::from_str(&v).map_err(|e| e.to_string())?;
     }
@@ -116,6 +122,8 @@ fn config_pairs(cfg: &AppConfig) -> Result<Vec<(&'static str, String)>, String> 
         ("api_config", serde_json::to_string(&cfg.api_config).map_err(|e| e.to_string())?),
         ("prompt_template", serde_json::to_string(&cfg.prompt_template).map_err(|e| e.to_string())?),
         ("custom_default_template", serde_json::to_string(&cfg.custom_default_template).map_err(|e| e.to_string())?),
+        ("weekly_map_template", serde_json::to_string(&cfg.weekly_map_template).map_err(|e| e.to_string())?),
+        ("weekly_reduce_template", serde_json::to_string(&cfg.weekly_reduce_template).map_err(|e| e.to_string())?),
         ("export_dir", serde_json::to_string(&cfg.export_dir).map_err(|e| e.to_string())?),
         ("collect_config", serde_json::to_string(&cfg.collect_config).map_err(|e| e.to_string())?),
     ])
@@ -205,6 +213,10 @@ pub struct LegacyAppConfig {
     #[serde(default)]
     custom_default_template: String,
     #[serde(default)]
+    weekly_map_template: String,
+    #[serde(default)]
+    weekly_reduce_template: String,
+    #[serde(default)]
     export_dir: String,
     #[serde(default)]
     collect_config: CollectConfig,
@@ -251,6 +263,8 @@ pub fn migrate_from_store(
             api_config: leg.api_config,
             prompt_template: leg.prompt_template,
             custom_default_template: leg.custom_default_template,
+            weekly_map_template: leg.weekly_map_template,
+            weekly_reduce_template: leg.weekly_reduce_template,
             export_dir: leg.export_dir,
             collect_config: leg.collect_config,
         };
@@ -327,6 +341,8 @@ mod tests {
             },
             prompt_template: "模板{{input}}".into(),
             custom_default_template: "默认".into(),
+            weekly_map_template: "map模板".into(),
+            weekly_reduce_template: "reduce模板".into(),
             export_dir: "D:\\export".into(),
             collect_config: CollectConfig {
                 enabled_tools: vec!["claude-code".into()],
@@ -342,6 +358,8 @@ mod tests {
             api_config: ApiConfig::default(),
             prompt_template: String::new(),
             custom_default_template: String::new(),
+            weekly_map_template: String::new(),
+            weekly_reduce_template: String::new(),
             export_dir: String::new(),
             collect_config: CollectConfig::default(),
             history: Vec::new(),

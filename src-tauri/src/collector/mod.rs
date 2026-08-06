@@ -213,7 +213,7 @@ pub fn render(sessions: &[SessionDigest]) -> (String, usize) {
 }
 
 /// 解析日期参数:"YYYY-MM-DD";空串或非法 → 今天(本地时区)。
-fn parse_target_date(date: &str) -> NaiveDate {
+pub(crate) fn parse_target_date(date: &str) -> NaiveDate {
     match NaiveDate::parse_from_str(date.trim(), "%Y-%m-%d") {
         Ok(d) => d,
         Err(_) => Local::now().date_naive(),
@@ -231,13 +231,15 @@ fn all_collectors() -> Vec<Box<dyn Collector>> {
 }
 
 /// 采集(同步阻塞 IO),由 command 在 spawn_blocking 中调用。
+///
+/// 单日切片:collector trait 只认单个 [`NaiveDate`]。区间采集(周报)在命令层
+/// 逐日循环调用本函数(见 [`collect_conversations_range`]),无需泛化 trait。
 fn collect_blocking(
-    date: &str,
+    date: NaiveDate,
     tools: &[String],
     filter: &PathFilter,
     tool_paths: &HashMap<String, String>,
 ) -> Result<CollectResult, String> {
-    let target = parse_target_date(date);
     let mut result = CollectResult::default();
     for c in all_collectors() {
         if !tools.iter().any(|t| t == c.id()) {
@@ -248,7 +250,7 @@ fn collect_blocking(
             .get(c.id())
             .map(|s| s.as_str())
             .filter(|s| !s.trim().is_empty());
-        let (sessions, skipped) = c.collect(target, filter, custom)?;
+        let (sessions, skipped) = c.collect(date, filter, custom)?;
         result.skipped_lines += skipped;
         result.sessions.extend(sessions);
     }
@@ -258,6 +260,29 @@ fn collect_blocking(
     result.rendered_text = text;
     result.est_tokens = tokens;
     Ok(result)
+}
+
+/// 逐日采集区间 `[start, end]`(含首尾,自动处理倒序),返回每日的 [`CollectResult`]
+/// (含空日,调用方按需过滤)。周报采集命令与 `generate_weekly_report` 共用此函数。
+pub(crate) fn collect_range_days(
+    start: NaiveDate,
+    end: NaiveDate,
+    tools: &[String],
+    filter: &PathFilter,
+    tool_paths: &HashMap<String, String>,
+) -> Result<Vec<(NaiveDate, CollectResult)>, String> {
+    let (start, end) = if end < start { (end, start) } else { (start, end) };
+    let mut out = Vec::new();
+    let mut d = start;
+    loop {
+        let res = collect_blocking(d, tools, filter, tool_paths)?;
+        out.push((d, res));
+        match d.succ_opt() {
+            Some(next) if next <= end => d = next,
+            _ => break,
+        }
+    }
+    Ok(out)
 }
 
 /// 采集指定日期、指定工具的本地对话记录。
@@ -274,11 +299,75 @@ pub async fn collect_conversations(
     tool_paths: HashMap<String, String>,
 ) -> Result<CollectResult, String> {
     let filter = filter.normalize();
-    let date = date.clone();
+    let target = parse_target_date(&date);
     let tools = tools.clone();
-    tokio::task::spawn_blocking(move || collect_blocking(&date, &tools, &filter, &tool_paths))
+    tokio::task::spawn_blocking(move || collect_blocking(target, &tools, &filter, &tool_paths))
         .await
         .map_err(|e| format!("采集任务异常: {e}"))?
+}
+
+/// 区间采集的单日结果(周报 map 的一个批次)。
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DayCollect {
+    /// "YYYY-MM-DD"。
+    pub date: String,
+    pub sessions: Vec<SessionDigest>,
+    /// 当日渲染后的对话文本(喂给 map 摘要)。
+    pub rendered_text: String,
+    pub est_tokens: usize,
+}
+
+/// 区间采集结果:区间内逐日明细 + 总 token(供前端预览/预算,不耗 LLM)。
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RangeCollectResult {
+    /// 按日期升序;无对话的日期也保留(est_tokens=0),便于前端逐日展示。
+    pub days: Vec<DayCollect>,
+    pub total_tokens: usize,
+    pub skipped_lines: usize,
+}
+
+/// 采集区间内(含首尾)逐日的对话记录。逐日以单日切片采集(复用 [`collect_blocking`]),
+/// 每日一个 [`DayCollect`](周报 map 的一个批次)。仅本地 IO,无 LLM。
+///
+/// - `start`/`end`:本地日期 "YYYY-MM-DD",空/非法 → 今天;`end < start` 时自动交换。
+/// - `tools`/`filter`/`tool_paths` 语义同 [`collect_conversations`]。
+#[tauri::command]
+pub async fn collect_conversations_range(
+    start: String,
+    end: String,
+    tools: Vec<String>,
+    filter: PathFilterParam,
+    tool_paths: HashMap<String, String>,
+) -> Result<RangeCollectResult, String> {
+    let filter = filter.normalize();
+    let start_d = parse_target_date(&start);
+    let end_d = parse_target_date(&end);
+    let tools = tools.clone();
+    tokio::task::spawn_blocking(move || {
+        let pairs = collect_range_days(start_d, end_d, &tools, &filter, &tool_paths)?;
+        let mut days = Vec::with_capacity(pairs.len());
+        let mut total_tokens = 0usize;
+        let mut skipped_lines = 0usize;
+        for (d, res) in pairs {
+            total_tokens += res.est_tokens;
+            skipped_lines += res.skipped_lines;
+            days.push(DayCollect {
+                date: d.format("%Y-%m-%d").to_string(),
+                sessions: res.sessions,
+                rendered_text: res.rendered_text,
+                est_tokens: res.est_tokens,
+            });
+        }
+        Ok(RangeCollectResult {
+            days,
+            total_tokens,
+            skipped_lines,
+        })
+    })
+    .await
+    .map_err(|e| format!("区间采集任务异常: {e}"))?
 }
 
 /// 返回各采集工具数据源的**默认路径**(已展开 `~`),供设置页展示与「恢复默认」使用。
@@ -296,7 +385,9 @@ pub fn default_collect_paths() -> HashMap<String, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::expand_home;
+    use super::{collect_range_days, expand_home, PathFilter};
+    use chrono::NaiveDate;
+    use std::collections::HashMap;
     use std::path::PathBuf;
 
     /// `~` / `~/x` / `~\x` 展开为真实主目录;空串与纯空白 → None;绝对/无前缀原样返回。
@@ -318,5 +409,31 @@ mod tests {
         // 绝对路径 / 无 `~` 前缀 → 原样返回(去首尾空白)。
         assert_eq!(expand_home("D:/work/app"), Some(PathBuf::from("D:/work/app")));
         assert_eq!(expand_home("  D:\\work  "), Some(PathBuf::from("D:\\work")));
+    }
+
+    /// 区间循环:含首尾、升序、end<start 自动交换、单日特例。用空工具列表(不触盘)。
+    #[test]
+    fn collect_range_days_inclusive_swap_and_single() {
+        let no_tools: Vec<String> = vec![];
+        let filter = PathFilter::default();
+        let paths = HashMap::new();
+        let d1 = NaiveDate::from_ymd_opt(2026, 8, 3).unwrap();
+        let d2 = NaiveDate::from_ymd_opt(2026, 8, 4).unwrap();
+        let d3 = NaiveDate::from_ymd_opt(2026, 8, 5).unwrap();
+
+        // 正常区间:含首尾,升序 3 天。
+        let days = collect_range_days(d1, d3, &no_tools, &filter, &paths).unwrap();
+        let dates: Vec<_> = days.iter().map(|(d, _)| *d).collect();
+        assert_eq!(dates, vec![d1, d2, d3]);
+
+        // 倒序 end<start:自动交换,仍升序。
+        let days = collect_range_days(d3, d1, &no_tools, &filter, &paths).unwrap();
+        let dates: Vec<_> = days.iter().map(|(d, _)| *d).collect();
+        assert_eq!(dates, vec![d1, d2, d3]);
+
+        // 单日区间 = 1 天(周报「单日周报」特例)。
+        let days = collect_range_days(d2, d2, &no_tools, &filter, &paths).unwrap();
+        assert_eq!(days.len(), 1);
+        assert_eq!(days[0].0, d2);
     }
 }

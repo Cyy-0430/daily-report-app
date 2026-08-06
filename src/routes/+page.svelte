@@ -3,29 +3,22 @@
   import { get } from "svelte/store";
   import {
     generateReport,
-    exportReport,
-    writeTextFile,
     collectConversations,
     COLLECT_TOOLS,
     type CollectResult,
   } from "$lib/bindings";
   import { config, history, notify, pendingInput } from "$lib/store";
-  import { renderMarkdown } from "$lib/markdown";
-  import { save } from "@tauri-apps/plugin-dialog";
-  import { writeText } from "@tauri-apps/plugin-clipboard-manager";
+  import ReportPanel from "$lib/components/ReportPanel.svelte";
 
   let input = $state("");
   let output = $state("");
   let busy = $state(false);
-  let mode = $state<"edit" | "preview">("preview");
 
   // 采集相关
   let collectDate = $state(todayStr());
   let collecting = $state(false);
   let collectResult = $state<CollectResult | null>(null);
   let showConversations = $state(false);
-
-  let html = $derived(renderMarkdown(output));
 
   // 采集来源标签:依勾选的工具动态展示(id→label),多个用英文逗号隔开。
   // enabledTools 为空时回退到默认四个(与采集逻辑一致)。
@@ -95,7 +88,6 @@
     }
     busy = true;
     output = "";
-    mode = "preview";
     try {
       const item = await generateReport(input, conv, (chunk) => {
         if (chunk.type === "delta") output += chunk.text;
@@ -107,36 +99,6 @@
       notify("err", String(e));
     } finally {
       busy = false;
-    }
-  }
-
-  async function onCopy() {
-    if (!output) return;
-    try {
-      await writeText(output);
-      notify("ok", "已复制到剪贴板");
-    } catch (e) {
-      notify("err", String(e));
-    }
-  }
-
-  async function onExport() {
-    if (!output) return;
-    try {
-      const saved = await exportReport(output);
-      if (saved) {
-        notify("ok", `已导出：${saved}`);
-        return;
-      }
-      const path = await save({
-        defaultPath: `${collectDate}.md`,
-        filters: [{ name: "Markdown", extensions: ["md"] }],
-      });
-      if (!path) return;
-      await writeTextFile(path, output);
-      notify("ok", `已导出：${path}`);
-    } catch (e) {
-      notify("err", String(e));
     }
   }
 </script>
@@ -208,44 +170,7 @@
   </section>
 
   <!-- 02 · 日报 -->
-  <section class="panel">
-    <div class="panel-head">
-      <span class="panel-label">02 — {mode === "edit" ? "编辑" : "日报"}</span>
-      <div class="head-actions">
-        <button
-          class="btn btn-ghost btn-sm"
-          onclick={() => (mode = mode === "edit" ? "preview" : "edit")}
-          disabled={!output || busy}
-        >
-          {mode === "edit" ? "预览" : "编辑"}
-        </button>
-        <button class="btn btn-ghost btn-sm" onclick={onCopy} disabled={!output || busy}>
-          复制
-        </button>
-        <button class="btn btn-accent btn-sm" onclick={onExport} disabled={!output || busy}>
-          导出 .md
-        </button>
-      </div>
-    </div>
-
-    <div class="editor-body">
-      {#if mode === "edit"}
-        <textarea bind:value={output} class="editor-textarea is-code"></textarea>
-      {:else if output}
-        <!-- svelte-ignore a11y_no_noninteractive_element_interactions a11y_click_events_have_key_events -->
-        <article class="md-body" onclick={onCopy} onkeydown={(e) => (e.key === "Enter" || e.key === " ") && onCopy()} title="点击复制全部内容">{@html html}</article>
-      {:else}
-        <div class="editor-empty">
-          <span class="empty-mark">▍</span>
-          <p>填写左侧要点或「采集对话」，点「生成日报」<br />结果会逐字呈现，之后可手动编辑。</p>
-        </div>
-      {/if}
-    </div>
-
-    <div class="panel-foot">
-      <span class="meta">{busy ? "streaming…" : output ? `约 ${output.length} 字` : ""}</span>
-    </div>
-  </section>
+  <ReportPanel bind:output busy={busy} label="日报" exportName={collectDate} />
 </div>
 
 <style>
@@ -327,22 +252,6 @@
   .editor-textarea::placeholder {
     color: var(--ink-faint);
   }
-  .editor-textarea.is-code {
-    font-family: var(--mono);
-    font-size: 0.84rem;
-  }
-  .editor-body {
-    flex: 1;
-    min-height: 0;
-    overflow: auto;
-    display: flex;
-    flex-direction: column;
-    padding: 1.05rem 1.15rem;
-  }
-  .head-actions {
-    display: flex;
-    gap: 0.4rem;
-  }
   .meta {
     font-family: var(--mono);
     font-size: 0.74rem;
@@ -350,31 +259,5 @@
   }
   .arrow {
     margin-left: 0.35rem;
-  }
-  .md-body {
-    cursor: pointer;
-  }
-  .editor-empty {
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 0.85rem;
-    color: var(--ink-faint);
-    text-align: center;
-    font-size: 0.85rem;
-    line-height: 1.7;
-  }
-  .empty-mark {
-    font-family: var(--mono);
-    font-size: 1.5rem;
-    color: var(--accent);
-    animation: blink 1.1s steps(2, start) infinite;
-  }
-  @keyframes blink {
-    50% {
-      opacity: 0;
-    }
   }
 </style>

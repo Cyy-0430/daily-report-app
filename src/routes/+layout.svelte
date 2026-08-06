@@ -9,7 +9,8 @@
   const appWindow = getCurrentWindow();
 
   const nav = [
-    { href: "/", label: "生成" },
+    { href: "/", label: "日报" },
+    { href: "/weekly", label: "周报" },
     { href: "/settings", label: "设置" },
     { href: "/history", label: "历史" },
   ];

@@ -460,6 +460,68 @@ let path = custom_path.and_then(super::expand_home).or_else(|| self.default_path
 
 ---
 
+## Scenario: 区间采集(周报)
+
+> 周报按区间(多日)采集对话,供 map-reduce 逐日摘要。**区间语义在命令层逐日循环实现,
+> collector trait 不变**(仍只认单个 `NaiveDate` 单日切片);跨天 session 在逐日采集下
+> 自然按日拆分——这正是周报 map 需要的按天批次。
+
+### 1. Scope / Trigger
+修改/新增区间采集命令(`collect_conversations_range`)、`DayCollect`/`RangeCollectResult`、
+或周报生成命令 `generate_weekly_report` 内的采集编排时遵守本契约。
+
+### 2. Signatures
+```rust
+// collector/mod.rs
+pub(crate) fn collect_range_days(start: NaiveDate, end: NaiveDate, tools: &[String],
+    filter: &PathFilter, tool_paths: &HashMap<String, String>)
+    -> Result<Vec<(NaiveDate, CollectResult)>, String>   // [start,end] 逐日单日采集(含空日)
+
+#[tauri::command]
+pub async fn collect_conversations_range(
+    start: String,             // "YYYY-MM-DD",空/非法=今天
+    end: String,               // "YYYY-MM-DD",空/非法=今天;end<start 自动交换
+    tools: Vec<String>,
+    filter: PathFilterParam,
+    tool_paths: HashMap<String, String>,
+) -> Result<RangeCollectResult, String>
+
+pub struct DayCollect { date: String, sessions: Vec<SessionDigest>, rendered_text: String, est_tokens: usize }
+pub struct RangeCollectResult { days: Vec<DayCollect>, total_tokens: usize, skipped_lines: usize }
+```
+TS 侧:`collectConversationsRange(start,end,tools,filter,toolPaths)` ↔ `DayCollect`/`RangeCollectResult`
+(camelCase,与 `RangeCollectResult` 的 `totalTokens`/`skippedLines` 对齐)。
+
+### 3. Contracts
+
+#### 3h. 区间采集(硬契约)
+- **命令层逐日循环**:对 `[start,end]`(含首尾)每日调一次单日采集(即 `collect_conversations` 的
+  单日语义),每日产出一个 `DayCollect`;**无对话的日期也保留**(est_tokens=0,供前端逐日展示/预算)。
+- **collector trait 不泛化**:各 collector 的日期过滤仍为单日相等(`== date`,见 §3a/§3d/§3e),
+  区间只存在于命令层循环;`collect_range_days` 与 `generate_weekly_report` 共用同一循环,不重复实现。
+- **跨天 session 逐日拆分**:同一 session 横跨区间内多日时,在每日的采集结果中各出现一次
+  (每日只含当日行),与周报 map 的按天批次语义一致。
+- **`{{conversations}}` 喂给 map**:`generate_weekly_report` 取每日 `rendered_text` 作为该日 map
+  批次的输入;采集命令本身无 LLM、无 token 消耗。
+- **错误语义沿用单日**:某日采集报错(如 claude-code 目录不可读)→ 整次命令 `Err`;某工具数据源
+  缺失/打不开 → 静默跳过(沿用各工具既有语义)。
+
+### 4. Validation & Error Matrix
+
+| 条件 | 行为 |
+|------|------|
+| `end < start` | 自动交换(与顺序无关) |
+| `start`/`end` 空串或非法 | 按 `parse_target_date` 语义 = 今天(本地时区) |
+| 区间某日无对话 | 保留空 `DayCollect`(sessions=[]、est_tokens=0),不进 skipped |
+| 区间某日 claude-code 目录不可读 | `Err` 上抛(沿用单日语义) |
+| 某工具数据源不存在 | 静默跳过该工具(沿用各工具语义) |
+
+### 5. Tests Required
+- 逐日切片语义与单日采集一致(既有单日切片测试已覆盖 `== date` 过滤;区间循环本身无新增过滤逻辑)。
+- `collect_range_days` 的区间迭代(含首尾、倒序交换)可手测验证;循环逻辑简单,不引入新的切片规则。
+
+---
+
 ## 关联
 - Claude Code 路径过滤任务:`.trellis/tasks/07-10-collect-path-filter/`(prd/design/implement)。
 - ZCode 采集任务:`.trellis/tasks/08-04-zcode-collector/`(prd/design/implement)。
@@ -470,3 +532,4 @@ let path = custom_path.and_then(super::expand_home).or_else(|| self.default_path
   见 `claude_code.rs::extract_line` 与 `zcode.rs::extract_from_parts` 及其单测。
 - opencode 复用 zcode 的纯函数:`zcode.rs::{build_day_lines, extract_from_parts, ms_to_local}`
   均 `pub(super)`;camelCase 工具参数回退链(`filePath` 等)在 `extract_from_parts` 内两套兼容。
+- 周报生成(区间采集 + map-reduce)任务:`.trellis/tasks/08-06-weekly-report-mapreduce/`(prd/design/implement)。
