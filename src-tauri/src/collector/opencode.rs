@@ -34,7 +34,7 @@ pub struct OpencodeCollector;
 
 impl Collector for OpencodeCollector {
     fn id(&self) -> &'static str {
-        "opencode"
+        super::TOOL_ID_OPENCODE
     }
     fn display_name(&self) -> &'static str {
         "Opencode"
@@ -158,11 +158,11 @@ impl Collector for OpencodeCollector {
 
             let started_at = started_ms
                 .and_then(ms_to_local)
-                .map(|t| t.format("%Y-%m-%d %H:%M").to_string())
+                .map(|t| t.format(super::FMT_DATE_HM).to_string())
                 .unwrap_or_default();
             let ended_at = ended_ms
                 .and_then(ms_to_local)
-                .map(|t| t.format("%H:%M").to_string())
+                .map(|t| t.format(super::FMT_HM).to_string())
                 .unwrap_or_default();
 
             let line_count = lines.len();

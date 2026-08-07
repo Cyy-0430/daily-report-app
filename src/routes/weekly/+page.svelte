@@ -3,9 +3,10 @@
     collectConversationsRange,
     generateWeeklyReport,
     COLLECT_TOOLS,
+    DEFAULT_TOOL_IDS,
     type RangeCollectResult,
   } from "$lib/bindings";
-  import { config, history, notify } from "$lib/store";
+  import { config, history, notify, MSG_API_NOT_CONFIGURED } from "$lib/store";
   import ReportPanel from "$lib/components/ReportPanel.svelte";
 
   let startDate = $state(mondayStr());
@@ -26,7 +27,7 @@
 
   const enabledToolIds = $derived.by(() => {
     const t = $config.collectConfig?.enabledTools ?? [];
-    return t.length ? t : ["claude-code", "zcode", "codex", "opencode"];
+    return t.length ? t : DEFAULT_TOOL_IDS;
   });
   const collectSourceLabel = $derived(
     enabledToolIds
@@ -91,7 +92,7 @@
 
   async function onGenerate() {
     if (!apiReady) {
-      notify("err", "请先在「设置」中配置 API");
+      notify("err", MSG_API_NOT_CONFIGURED);
       return;
     }
     busy = true;

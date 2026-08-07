@@ -14,6 +14,9 @@ export const toast = writable<{ kind: "ok" | "err"; msg: string } | null>(null);
 /** 历史记录「复用」时，回填到主页输入框的待处理内容。 */
 export const pendingInput = writable<string | null>(null);
 
+/** API 未配置时的统一提示文案。 */
+export const MSG_API_NOT_CONFIGURED = "请先在「设置」中配置 API";
+
 export function notify(kind: "ok" | "err", msg: string) {
   toast.set({ kind, msg });
   setTimeout(() => toast.set(null), 3000);

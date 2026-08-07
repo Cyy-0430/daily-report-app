@@ -9,6 +9,9 @@ use std::sync::Mutex;
 use rusqlite::Connection;
 use tauri::Manager;
 
+/// SQLite 数据库文件名(位于 app_data_dir)。
+const DB_FILE_NAME: &str = "daily_report.db";
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -20,12 +23,12 @@ pub fn run() {
             // 数据目录 + 建库
             let app_data_dir = app.path().app_data_dir()?;
             std::fs::create_dir_all(&app_data_dir)?;
-            let db_path = app_data_dir.join("daily_report.db");
+            let db_path = app_data_dir.join(DB_FILE_NAME);
             let conn = Connection::open(db_path)?;
             db::init_db(&conn).map_err(|e| Box::<dyn std::error::Error>::from(e))?;
 
             // 一次性迁移旧 data.json(meta 未标记时才读 store、执行迁移)
-            let need_migrate = db::get_meta(&conn, "migrated_from_store")
+            let need_migrate = db::get_meta(&conn, db::META_MIGRATED_FROM_STORE)
                 .map_err(|e| Box::<dyn std::error::Error>::from(e))?
                 .is_none();
             if need_migrate {

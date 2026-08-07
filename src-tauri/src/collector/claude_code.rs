@@ -17,7 +17,7 @@ pub struct ClaudeCodeCollector;
 
 impl Collector for ClaudeCodeCollector {
     fn id(&self) -> &'static str {
-        "claude-code"
+        super::TOOL_ID_CLAUDE_CODE
     }
     fn display_name(&self) -> &'static str {
         "Claude Code"
@@ -39,7 +39,7 @@ impl Collector for ClaudeCodeCollector {
             .or_else(|| self.default_path())
         {
             Some(p) => p,
-            None => return Err("无法定位用户主目录".to_string()),
+            None => return Err(super::MSG_HOME_NOT_FOUND.to_string()),
         };
         let mut digests = Vec::new();
         let mut skipped = 0usize;
@@ -90,7 +90,7 @@ impl Collector for ClaudeCodeCollector {
 
 /// `~/.claude/projects`
 fn home_projects_dir() -> Result<PathBuf, String> {
-    let home = dirs::home_dir().ok_or_else(|| "无法定位用户主目录".to_string())?;
+    let home = dirs::home_dir().ok_or_else(|| super::MSG_HOME_NOT_FOUND.to_string())?;
     Ok(home.join(".claude").join("projects"))
 }
 
@@ -178,7 +178,7 @@ fn parse_session(
         if local.date_naive() != date {
             continue; // 非目标日期:正常过滤,不计入 skipped
         }
-        let ts_disp = local.format("%H:%M").to_string();
+        let ts_disp = local.format(super::FMT_HM).to_string();
 
         if cwd.is_none() {
             if let Some(c) = ev["cwd"].as_str() {
@@ -186,9 +186,9 @@ fn parse_session(
             }
         }
         if started.is_none() {
-            started = Some(local.format("%Y-%m-%d %H:%M").to_string());
+            started = Some(local.format(super::FMT_DATE_HM).to_string());
         }
-        ended = Some(local.format("%H:%M").to_string());
+        ended = Some(local.format(super::FMT_HM).to_string());
 
         if let Some((role, text, tools)) = extract_line(&ev) {
             lines.push(ConversationLine {
@@ -276,7 +276,7 @@ fn extract_line(ev: &Value) -> Option<(Role, String, Vec<String>)> {
                             .or_else(|| inp["pattern"].as_str())
                             .or_else(|| inp["url"].as_str())
                             .unwrap_or("");
-                        let key = truncate(key, 80);
+                        let key = super::truncate(key, super::TOOL_KEY_MAX_LEN);
                         tools.push(if key.is_empty() {
                             name.to_string()
                         } else {
@@ -295,27 +295,9 @@ fn extract_line(ev: &Value) -> Option<(Role, String, Vec<String>)> {
     }
 }
 
-fn truncate(s: &str, n: usize) -> String {
-    if s.chars().count() <= n {
-        s.to_string()
-    } else {
-        let mut out: String = s.chars().take(n).collect();
-        out.push('…');
-        out
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    /// 纯函数:截断。
-    #[test]
-    fn truncate_works() {
-        assert_eq!(truncate("abc", 5), "abc");
-        let long = "a".repeat(10);
-        assert_eq!(truncate(&long, 3), "aaa…");
-    }
 
     /// 策略①:user 文本保留。
     #[test]

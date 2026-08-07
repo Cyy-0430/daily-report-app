@@ -121,6 +121,9 @@ export const COLLECT_TOOLS: {
   { id: "opencode", label: "Opencode", hint: "~/.local/share/opencode", kind: "file" },
 ];
 
+/** 默认启用的采集工具 id 列表(派生自 COLLECT_TOOLS,单一来源;与 Rust DEFAULT_TOOL_IDS 对齐)。 */
+export const DEFAULT_TOOL_IDS: string[] = COLLECT_TOOLS.map((t) => t.id);
+
 export function emptyConfig(): AppConfig {
   return {
     apiConfig: { baseUrl: "", apiKey: "", model: "" },
@@ -132,7 +135,7 @@ export function emptyConfig(): AppConfig {
     weeklyDefaultReduceTemplate: "",
     exportDir: "",
     collectConfig: {
-      enabledTools: ["claude-code", "zcode", "codex", "opencode"],
+      enabledTools: DEFAULT_TOOL_IDS,
       includePaths: [],
       excludePaths: [],
       toolPaths: {},

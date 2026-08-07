@@ -35,12 +35,11 @@ pub struct CollectConfig {
 
 /// 旧配置缺失 enabled_tools 时回填默认值。
 fn default_enabled_tools() -> Vec<String> {
-    vec![
-        "claude-code".to_string(),
-        "zcode".to_string(),
-        "codex".to_string(),
-        "opencode".to_string(),
-    ]
+    // 单一来源:与 collector::all_collectors() 注册集、前端 COLLECT_TOOLS 对齐。
+    crate::collector::DEFAULT_TOOL_IDS
+        .iter()
+        .map(|s| s.to_string())
+        .collect()
 }
 
 impl Default for CollectConfig {

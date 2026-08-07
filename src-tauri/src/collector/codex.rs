@@ -34,7 +34,7 @@ pub struct CodexCollector;
 
 impl Collector for CodexCollector {
     fn id(&self) -> &'static str {
-        "codex"
+        super::TOOL_ID_CODEX
     }
     fn display_name(&self) -> &'static str {
         "Codex"
@@ -56,7 +56,7 @@ impl Collector for CodexCollector {
             .or_else(|| self.default_path())
         {
             Some(p) => p,
-            None => return Err("无法定位用户主目录".to_string()),
+            None => return Err(super::MSG_HOME_NOT_FOUND.to_string()),
         };
         if !base.exists() {
             return Ok((Vec::new(), 0)); // Codex 未安装 → 静默跳过
@@ -90,7 +90,7 @@ impl Collector for CodexCollector {
 
 /// `~/.codex/sessions`。无法定位主目录时返回 Err(由调用方决定是否上抛)。
 fn home_sessions_dir() -> Result<PathBuf, String> {
-    let home = dirs::home_dir().ok_or_else(|| "无法定位用户主目录".to_string())?;
+    let home = dirs::home_dir().ok_or_else(|| super::MSG_HOME_NOT_FOUND.to_string())?;
     Ok(home.join(".codex").join("sessions"))
 }
 
@@ -177,12 +177,12 @@ fn parse_session(
         if local.date_naive() != date {
             continue; // 非目标日期:跨天切片,不计入 skipped
         }
-        let ts_disp = local.format("%H:%M").to_string();
+        let ts_disp = local.format(super::FMT_HM).to_string();
 
         if started.is_none() {
-            started = Some(local.format("%Y-%m-%d %H:%M").to_string());
+            started = Some(local.format(super::FMT_DATE_HM).to_string());
         }
-        ended = Some(local.format("%H:%M").to_string());
+        ended = Some(local.format(super::FMT_HM).to_string());
 
         if let Some((role, text, tools)) = extract_line(&ev) {
             lines.push(ConversationLine {
@@ -250,7 +250,7 @@ fn extract_line(ev: &Value) -> Option<(Role, String, Vec<String>)> {
                 Some(tool_only(name, key))
             }
             "local_shell_call" => {
-                let key = p["action"]["command"].as_str().map(|s| truncate(s, 80));
+                let key = p["action"]["command"].as_str().map(|s| super::truncate(s, super::TOOL_KEY_MAX_LEN));
                 Some(tool_only("shell", key))
             }
             // message(developer/user/assistant 原始 API 消息)→ 整类丢弃(噪声 + 重复)。
@@ -335,7 +335,7 @@ fn clean_message(msg: &str) -> (String, Vec<String>) {
             let inner_open = &msg[start + block.0.len() .. open_end.saturating_sub(1)];
             let name = inner_open.trim_start_matches(':').trim();
             if !name.is_empty() {
-                tools.push(truncate(name, 80));
+                tools.push(super::truncate(name, super::TOOL_KEY_MAX_LEN));
             }
         }
 
@@ -383,17 +383,7 @@ fn parse_tool_key(arguments: &Value) -> Option<String> {
         .or_else(|| obj["pattern"].as_str())
         .or_else(|| obj["url"].as_str())
         .or_else(|| obj["description"].as_str())?;
-    Some(truncate(key, 80))
-}
-
-fn truncate(s: &str, n: usize) -> String {
-    if s.chars().count() <= n {
-        s.to_string()
-    } else {
-        let mut out: String = s.chars().take(n).collect();
-        out.push('…');
-        out
-    }
+    Some(super::truncate(key, super::TOOL_KEY_MAX_LEN))
 }
 
 #[cfg(test)]
@@ -565,14 +555,6 @@ mod tests {
         assert_eq!(project_name(Some("D:\\hand\\yqnf\\yqnf-contract"), "s1"), "yqnf-contract");
         assert_eq!(project_name(None, "019fb603-abcd"), "019fb603");
         assert_eq!(project_name(Some("D:\\"), "019fb603"), "019fb603");
-    }
-
-    /// truncate:与其它采集器一致。
-    #[test]
-    fn truncate_works() {
-        assert_eq!(truncate("abc", 5), "abc");
-        let long = "a".repeat(10);
-        assert_eq!(truncate(&long, 3), "aaa…");
     }
 
     /// 跨天切片:同 session 两条 event 分属不同日,只留目标日。

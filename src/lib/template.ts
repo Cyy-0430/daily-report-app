@@ -1,3 +1,10 @@
+/** 模板变量占位符(与后端 llm.rs 的 TPL_* 常量一致)。 */
+export const TPL_DATE = "{{date}}";
+export const TPL_INPUT = "{{input}}";
+export const TPL_CONV = "{{conversations}}";
+export const TPL_DATE_RANGE = "{{date_range}}";
+export const TPL_DAY_SUMMARIES = "{{day_summaries}}";
+
 export const DEFAULT_PROMPT_TEMPLATE = `你是日报整理助手。请综合下面的「今日工作要点」与「今日 AI 工具对话记录」，整理成如下格式的日报：
 
 {{date}}日报：

@@ -1,4 +1,4 @@
-use crate::collector::{collect_range_days, parse_target_date, PathFilterParam};
+use crate::collector::{collect_range_days, parse_target_date, FMT_DATE, PathFilterParam};
 use crate::config::{load_config, ApiConfig, HistoryItem};
 use crate::db::{insert_history, DbState};
 use chrono::{Datelike, NaiveDate};
@@ -10,6 +10,45 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 use tauri::ipc::Channel;
 use tauri::{AppHandle, Manager};
+
+// ===========================================================================
+// LLM 调用相关常量(端点 / SSE / 模板变量 / 消息 / stage / 标题)
+// ===========================================================================
+// 注:含 `{}` 占位的 `format!` 模板(如 "请求失败：{e}")因 Rust 宏要求字面量,无法提
+// 为 const,保留就近字面量;此处仅收集纯字面量。
+
+/// OpenAI 兼容端点路径片段(build_endpoint 拼接)。
+const CHAT_COMPLETIONS: &str = "/chat/completions";
+const V1: &str = "/v1";
+
+/// SSE 流标记。
+const SSE_DATA: &str = "data:";
+const SSE_DONE: &str = "[DONE]";
+
+/// 模板变量占位符(render_* 注入)。
+const TPL_DATE: &str = "{{date}}";
+const TPL_INPUT: &str = "{{input}}";
+const TPL_CONV: &str = "{{conversations}}";
+const TPL_DATE_RANGE: &str = "{{date_range}}";
+const TPL_DAY_SUMMARIES: &str = "{{day_summaries}}";
+
+/// API/连接/响应相关提示文案。
+const MSG_API_INCOMPLETE: &str = "请先在设置中填写完整的 API 配置（BaseURL / Key / 模型）";
+const MSG_API_INCOMPLETE_SHORT: &str = "请填写完整的 API 配置";
+const MSG_RESPONSE_MISSING_CONTENT: &str = "响应缺少 choices[0].message.content";
+const MSG_CONNECT_OK: &str = "连接成功";
+const MSG_NO_WEEKLY_MATERIAL: &str = "区间内无有效对话，且未填写补充要点，无法生成周报";
+
+/// 周报 map/reduce 进度阶段。
+const STAGE_MAP: &str = "map";
+const STAGE_REDUCE: &str = "reduce";
+
+/// 标题后缀与展示分隔符。
+const TITLE_DAILY_SUFFIX: &str = "日报";
+const TITLE_WEEKLY_SUFFIX: &str = "周报";
+const DATE_RANGE_SEP: &str = "~";
+const MISSING_JOIN_SEP: &str = "、";
+const EMPTY_SUMMARIES: &str = "（无）";
 
 /// 流式事件，通过 Tauri Channel 推送到前端。
 #[derive(Clone, Serialize)]
@@ -37,24 +76,24 @@ pub fn render_template(
     conversations: &str,
 ) -> String {
     template
-        .replace("{{date}}", date_md)
-        .replace("{{input}}", input)
-        .replace("{{conversations}}", conversations)
+        .replace(TPL_DATE, date_md)
+        .replace(TPL_INPUT, input)
+        .replace(TPL_CONV, conversations)
 }
 
 /// 渲染周报 map(每日摘要)提示词。
 fn render_weekly_map(template: &str, date: &str, conversations: &str) -> String {
     template
-        .replace("{{date}}", date)
-        .replace("{{conversations}}", conversations)
+        .replace(TPL_DATE, date)
+        .replace(TPL_CONV, conversations)
 }
 
 /// 渲染周报 reduce(整周汇总)提示词。
 fn render_weekly_reduce(template: &str, date_range: &str, input: &str, day_summaries: &str) -> String {
     template
-        .replace("{{date_range}}", date_range)
-        .replace("{{input}}", input)
-        .replace("{{day_summaries}}", day_summaries)
+        .replace(TPL_DATE_RANGE, date_range)
+        .replace(TPL_INPUT, input)
+        .replace(TPL_DAY_SUMMARIES, day_summaries)
 }
 
 /// 区间 → "M.d–M.d" 展示串(标题与 {{date_range}} 共用)。
@@ -126,12 +165,12 @@ const WEEKLY_REDUCE_PROMPT: &str = "你是周报整理助手。请把下面本�
 /// 规范化 OpenAI 兼容接口的请求地址。
 fn build_endpoint(base_url: &str) -> String {
     let base = base_url.trim_end_matches('/');
-    if base.ends_with("/chat/completions") {
+    if base.ends_with(CHAT_COMPLETIONS) {
         base.to_string()
-    } else if base.ends_with("/v1") {
-        format!("{base}/chat/completions")
+    } else if base.ends_with(V1) {
+        format!("{base}{CHAT_COMPLETIONS}")
     } else {
-        format!("{base}/v1/chat/completions")
+        format!("{base}{V1}{CHAT_COMPLETIONS}")
     }
 }
 
@@ -175,11 +214,11 @@ async fn stream_chat_once(
         while let Some(pos) = buf.find('\n') {
             let line: String = buf[..pos].trim().to_string();
             buf.drain(..=pos);
-            if line.is_empty() || !line.starts_with("data:") {
+            if line.is_empty() || !line.starts_with(SSE_DATA) {
                 continue;
             }
-            let data = line["data:".len()..].trim();
-            if data == "[DONE]" {
+            let data = line[SSE_DATA.len()..].trim();
+            if data == SSE_DONE {
                 continue;
             }
             if let Ok(v) = serde_json::from_str::<serde_json::Value>(data) {
@@ -224,7 +263,7 @@ async fn complete_once(api: &ApiConfig, prompt: &str) -> Result<String, String> 
     v["choices"][0]["message"]["content"]
         .as_str()
         .map(|s| s.to_string())
-        .ok_or_else(|| "响应缺少 choices[0].message.content".to_string())
+        .ok_or_else(|| MSG_RESPONSE_MISSING_CONTENT.to_string())
 }
 
 /// 非流式调用 + 指数退避重试(backoff 1s,2s,4s)。用于周报 map。
@@ -286,7 +325,7 @@ pub async fn generate_stream(
     on_event: &Channel<StreamChunk>,
 ) -> Result<String, String> {
     if api_incomplete(api) {
-        let msg = "请先在设置中填写完整的 API 配置（BaseURL / Key / 模型）";
+        let msg = MSG_API_INCOMPLETE;
         let _ = on_event.send(StreamChunk::Error {
             message: msg.into(),
         });
@@ -316,7 +355,7 @@ pub async fn generate_stream(
 #[tauri::command]
 pub async fn test_connection(api: ApiConfig) -> Result<String, String> {
     if api_incomplete(&api) {
-        return Err("请填写完整的 API 配置".into());
+        return Err(MSG_API_INCOMPLETE_SHORT.into());
     }
     let endpoint = build_endpoint(&api.base_url);
     let client = Client::builder()
@@ -336,7 +375,7 @@ pub async fn test_connection(api: ApiConfig) -> Result<String, String> {
         .await
         .map_err(|e| format!("请求失败：{e}"))?;
     if resp.status().is_success() {
-        Ok("连接成功".into())
+        Ok(MSG_CONNECT_OK.into())
     } else {
         let status = resp.status();
         let text = resp.text().await.unwrap_or_default();
@@ -365,8 +404,8 @@ pub async fn generate_report(
     let now = chrono::Local::now();
     let item = HistoryItem {
         id: uuid::Uuid::new_v4().to_string(),
-        date: now.format("%Y-%m-%d").to_string(),
-        title: format!("{}.{}日报", now.month(), now.day()),
+        date: now.format(FMT_DATE).to_string(),
+        title: format!("{}.{}{TITLE_DAILY_SUFFIX}", now.month(), now.day()),
         input,
         output: full,
         created_at: now.timestamp(),
@@ -393,7 +432,7 @@ pub async fn generate_weekly_report(
     let cfg = load_config(app.clone())?;
     let api = &cfg.api_config;
     if api_incomplete(api) {
-        let msg = "请先在设置中填写完整的 API 配置（BaseURL / Key / 模型）";
+        let msg = MSG_API_INCOMPLETE;
         let _ = on_event.send(StreamChunk::Error {
             message: msg.into(),
         });
@@ -452,18 +491,18 @@ pub async fn generate_weekly_report(
         done += 1;
         match res {
             Ok(s) => {
-                summaries[i] = Some(format!("### {}（{}）\n{}", date_md(d), d.format("%Y-%m-%d"), s));
+                summaries[i] = Some(format!("### {}（{}）\n{}", date_md(d), d.format(FMT_DATE), s));
                 let _ = on_event.send(StreamChunk::Progress {
-                    stage: "map".into(),
+                    stage: STAGE_MAP.into(),
                     current: done,
                     total,
                     message: format!("摘要 {} 完成", d.format("%m-%d")),
                 });
             }
             Err(_) => {
-                missing.push(d.format("%Y-%m-%d").to_string());
+                missing.push(d.format(FMT_DATE).to_string());
                 let _ = on_event.send(StreamChunk::Progress {
-                    stage: "map".into(),
+                    stage: STAGE_MAP.into(),
                     current: done,
                     total,
                     message: format!("跳过 {}（失败）", d.format("%m-%d")),
@@ -475,7 +514,7 @@ pub async fn generate_weekly_report(
 
     // ③ reduce 前置校验:完全无素材则报错。
     if summaries.is_empty() && weekly_input.trim().is_empty() {
-        let msg = "区间内无有效对话，且未填写补充要点，无法生成周报";
+        let msg = MSG_NO_WEEKLY_MATERIAL;
         let _ = on_event.send(StreamChunk::Error {
             message: msg.into(),
         });
@@ -484,7 +523,7 @@ pub async fn generate_weekly_report(
 
     // ④ reduce:整周汇总(流式,重试3次,失败报错)。
     let _ = on_event.send(StreamChunk::Progress {
-        stage: "reduce".into(),
+        stage: STAGE_REDUCE.into(),
         current: 1,
         total: 1,
         message: "汇总".into(),
@@ -495,14 +534,14 @@ pub async fn generate_weekly_report(
         cfg.weekly_reduce_template.as_str()
     };
     let mut day_summaries = if summaries.is_empty() {
-        "（无）".to_string()
+        EMPTY_SUMMARIES.to_string()
     } else {
         summaries.join("\n\n")
     };
     if !missing.is_empty() {
         day_summaries.push_str(&format!(
             "\n\n> ⚠️ 以下日期因摘要失败已跳过：{}",
-            missing.join("、")
+            missing.join(MISSING_JOIN_SEP)
         ));
     }
     let date_range = format_range_md(start_d, end_d);
@@ -527,11 +566,11 @@ pub async fn generate_weekly_report(
     let item = HistoryItem {
         id: uuid::Uuid::new_v4().to_string(),
         date: format!(
-            "{}~{}",
-            start_d.format("%Y-%m-%d"),
-            end_d.format("%Y-%m-%d")
+            "{}{DATE_RANGE_SEP}{}",
+            start_d.format(FMT_DATE),
+            end_d.format(FMT_DATE)
         ),
-        title: format!("{}周报", date_range),
+        title: format!("{}{TITLE_WEEKLY_SUFFIX}", date_range),
         input: weekly_input,
         output: final_text,
         created_at: now.timestamp(),

@@ -13,6 +13,46 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
 
+// ===========================================================================
+// 跨采集器共享常量与工具(单一来源,避免各 collector 重复定义/字面量漂移)
+// ===========================================================================
+
+/// 时间展示/解析格式(各采集器与 llm.rs 共用)。
+pub(crate) const FMT_DATE: &str = "%Y-%m-%d";
+pub(crate) const FMT_HM: &str = "%H:%M";
+pub(crate) const FMT_DATE_HM: &str = "%Y-%m-%d %H:%M";
+
+/// 无法定位用户主目录的错误文案(collector 子模块共用)。
+const MSG_HOME_NOT_FOUND: &str = "无法定位用户主目录";
+
+/// 工具参数摘要的截断长度(各采集器 extract 一致)。
+const TOOL_KEY_MAX_LEN: usize = 80;
+
+/// 已注册采集器的工具 id(单一来源;与前端 `COLLECT_TOOLS` 的 id 对齐)。
+pub const TOOL_ID_CLAUDE_CODE: &str = "claude-code";
+pub const TOOL_ID_ZCODE: &str = "zcode";
+pub const TOOL_ID_CODEX: &str = "codex";
+pub const TOOL_ID_OPENCODE: &str = "opencode";
+
+/// 默认启用的采集工具 id(顺序与 `all_collectors()` 注册顺序、前端 `COLLECT_TOOLS` 一致)。
+pub(crate) const DEFAULT_TOOL_IDS: &[&str] = &[
+    TOOL_ID_CLAUDE_CODE,
+    TOOL_ID_ZCODE,
+    TOOL_ID_CODEX,
+    TOOL_ID_OPENCODE,
+];
+
+/// 截断到 n 字符(超出加 `…`)。各采集器共用,避免三份重复实现。
+fn truncate(s: &str, n: usize) -> String {
+    if s.chars().count() <= n {
+        s.to_string()
+    } else {
+        let mut out: String = s.chars().take(n).collect();
+        out.push('…');
+        out
+    }
+}
+
 pub mod claude_code;
 pub use claude_code::ClaudeCodeCollector;
 
@@ -214,7 +254,7 @@ pub fn render(sessions: &[SessionDigest]) -> (String, usize) {
 
 /// 解析日期参数:"YYYY-MM-DD";空串或非法 → 今天(本地时区)。
 pub(crate) fn parse_target_date(date: &str) -> NaiveDate {
-    match NaiveDate::parse_from_str(date.trim(), "%Y-%m-%d") {
+    match NaiveDate::parse_from_str(date.trim(), FMT_DATE) {
         Ok(d) => d,
         Err(_) => Local::now().date_naive(),
     }
@@ -354,7 +394,7 @@ pub async fn collect_conversations_range(
             total_tokens += res.est_tokens;
             skipped_lines += res.skipped_lines;
             days.push(DayCollect {
-                date: d.format("%Y-%m-%d").to_string(),
+                date: d.format(FMT_DATE).to_string(),
                 sessions: res.sessions,
                 rendered_text: res.rendered_text,
                 est_tokens: res.est_tokens,
@@ -385,10 +425,18 @@ pub fn default_collect_paths() -> HashMap<String, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{collect_range_days, expand_home, PathFilter};
+    use super::{collect_range_days, expand_home, truncate, PathFilter};
     use chrono::NaiveDate;
     use std::collections::HashMap;
     use std::path::PathBuf;
+
+    /// truncate:短串原样;超长截断并加 `…`。
+    #[test]
+    fn truncate_works() {
+        assert_eq!(truncate("abc", 5), "abc");
+        let long = "a".repeat(10);
+        assert_eq!(truncate(&long, 3), "aaa…");
+    }
 
     /// `~` / `~/x` / `~\x` 展开为真实主目录;空串与纯空白 → None;绝对/无前缀原样返回。
     #[test]

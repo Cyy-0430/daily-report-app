@@ -29,7 +29,7 @@ pub struct ZCodeCollector;
 
 impl Collector for ZCodeCollector {
     fn id(&self) -> &'static str {
-        "zcode"
+        super::TOOL_ID_ZCODE
     }
     fn display_name(&self) -> &'static str {
         "ZCode"
@@ -154,11 +154,11 @@ impl Collector for ZCodeCollector {
 
             let started_at = started_ms
                 .and_then(ms_to_local)
-                .map(|t| t.format("%Y-%m-%d %H:%M").to_string())
+                .map(|t| t.format(super::FMT_DATE_HM).to_string())
                 .unwrap_or_default();
             let ended_at = ended_ms
                 .and_then(ms_to_local)
-                .map(|t| t.format("%H:%M").to_string())
+                .map(|t| t.format(super::FMT_HM).to_string())
                 .unwrap_or_default();
 
             let line_count = lines.len();
@@ -229,7 +229,7 @@ pub(super) fn build_day_lines(
         started = Some(started.map_or(*tms, |s| s.min(*tms)));
         ended = Some(ended.map_or(*tms, |e| e.max(*tms)));
         let ts = ms_to_local(*tms)
-            .map(|t| t.format("%H:%M").to_string())
+            .map(|t| t.format(super::FMT_HM).to_string())
             .unwrap_or_default();
         lines.push(ConversationLine {
             ts,
@@ -272,7 +272,7 @@ pub(super) fn extract_from_parts(parts: &[Value]) -> Option<(String, Vec<String>
                     .or_else(|| inp["url"].as_str())
                     .or_else(|| inp["description"].as_str())
                     .unwrap_or("");
-                let key = truncate(key, 80);
+                let key = super::truncate(key, super::TOOL_KEY_MAX_LEN);
                 tools.push(if key.is_empty() {
                     name.to_string()
                 } else {
@@ -286,16 +286,6 @@ pub(super) fn extract_from_parts(parts: &[Value]) -> Option<(String, Vec<String>
         return None;
     }
     Some((texts.join("\n"), tools))
-}
-
-fn truncate(s: &str, n: usize) -> String {
-    if s.chars().count() <= n {
-        s.to_string()
-    } else {
-        let mut out: String = s.chars().take(n).collect();
-        out.push('…');
-        out
-    }
 }
 
 #[cfg(test)]
@@ -415,14 +405,6 @@ mod tests {
         assert!(lines.is_empty());
         assert_eq!(started, None);
         assert_eq!(ended, None);
-    }
-
-    /// truncate:与 Claude Code 行为一致。
-    #[test]
-    fn truncate_works() {
-        assert_eq!(truncate("abc", 5), "abc");
-        let long = "a".repeat(10);
-        assert_eq!(truncate(&long, 3), "aaa…");
     }
 
     /// 端到端:对真实 `~/.zcode/cli/db/db.sqlite` 采集某历史日期(2026-07-13,

@@ -12,6 +12,30 @@ use tauri::{AppHandle, Manager};
 
 use crate::config::{ApiConfig, AppConfig, CollectConfig, HistoryItem};
 
+// ===========================================================================
+// 持久化键与哨兵值(单一来源:get_config / config_pairs / 迁移共用,杜绝镜像漂移)
+// ===========================================================================
+
+/// `config` 表 KV 键集合(value 存 JSON 序列化值;新增配置项无需 ALTER TABLE)。
+const KEY_API_CONFIG: &str = "api_config";
+const KEY_PROMPT_TEMPLATE: &str = "prompt_template";
+const KEY_CUSTOM_DEFAULT_TEMPLATE: &str = "custom_default_template";
+const KEY_WEEKLY_MAP_TEMPLATE: &str = "weekly_map_template";
+const KEY_WEEKLY_REDUCE_TEMPLATE: &str = "weekly_reduce_template";
+const KEY_WEEKLY_DEFAULT_MAP_TEMPLATE: &str = "weekly_default_map_template";
+const KEY_WEEKLY_DEFAULT_REDUCE_TEMPLATE: &str = "weekly_default_reduce_template";
+const KEY_EXPORT_DIR: &str = "export_dir";
+const KEY_COLLECT_CONFIG: &str = "collect_config";
+
+/// `meta` 表键 + 哨兵值。`META_MIGRATED_FROM_STORE` 由 lib.rs 迁移触发点共用,故 pub(crate)。
+const META_SCHEMA_VERSION: &str = "schema_version";
+pub(crate) const META_MIGRATED_FROM_STORE: &str = "migrated_from_store";
+const SCHEMA_VERSION_VALUE: &str = "1";
+
+/// 旧 tauri-plugin-store 迁移源文件名与其内 `config` 键。
+const LEGACY_STORE_FILE: &str = "data.json";
+const STORE_KEY_CONFIG: &str = "config";
+
 /// 应用数据库连接状态(单连接,Mutex 串行保护)。
 pub struct DbState(pub Mutex<Connection>);
 
@@ -49,7 +73,7 @@ CREATE TABLE IF NOT EXISTS meta (
 pub fn init_db(conn: &Connection) -> Result<(), String> {
     let _ = conn.pragma_update(None, "journal_mode", "WAL");
     conn.execute_batch(SCHEMA_SQL).map_err(|e| e.to_string())?;
-    set_meta(conn, "schema_version", "1")?;
+    set_meta(conn, META_SCHEMA_VERSION, SCHEMA_VERSION_VALUE)?;
     Ok(())
 }
 
@@ -83,31 +107,31 @@ pub fn get_meta(conn: &Connection, key: &str) -> Result<Option<String>, String> 
 /// 读取全部配置,组装 `AppConfig`(缺失 key 用 default)。
 pub fn get_config(conn: &Connection) -> Result<AppConfig, String> {
     let mut cfg = AppConfig::default();
-    if let Some(v) = get_kv(conn, "api_config")? {
+    if let Some(v) = get_kv(conn, KEY_API_CONFIG)? {
         cfg.api_config = serde_json::from_str(&v).map_err(|e| e.to_string())?;
     }
-    if let Some(v) = get_kv(conn, "prompt_template")? {
+    if let Some(v) = get_kv(conn, KEY_PROMPT_TEMPLATE)? {
         cfg.prompt_template = serde_json::from_str(&v).map_err(|e| e.to_string())?;
     }
-    if let Some(v) = get_kv(conn, "custom_default_template")? {
+    if let Some(v) = get_kv(conn, KEY_CUSTOM_DEFAULT_TEMPLATE)? {
         cfg.custom_default_template = serde_json::from_str(&v).map_err(|e| e.to_string())?;
     }
-    if let Some(v) = get_kv(conn, "weekly_map_template")? {
+    if let Some(v) = get_kv(conn, KEY_WEEKLY_MAP_TEMPLATE)? {
         cfg.weekly_map_template = serde_json::from_str(&v).map_err(|e| e.to_string())?;
     }
-    if let Some(v) = get_kv(conn, "weekly_reduce_template")? {
+    if let Some(v) = get_kv(conn, KEY_WEEKLY_REDUCE_TEMPLATE)? {
         cfg.weekly_reduce_template = serde_json::from_str(&v).map_err(|e| e.to_string())?;
     }
-    if let Some(v) = get_kv(conn, "weekly_default_map_template")? {
+    if let Some(v) = get_kv(conn, KEY_WEEKLY_DEFAULT_MAP_TEMPLATE)? {
         cfg.weekly_default_map_template = serde_json::from_str(&v).map_err(|e| e.to_string())?;
     }
-    if let Some(v) = get_kv(conn, "weekly_default_reduce_template")? {
+    if let Some(v) = get_kv(conn, KEY_WEEKLY_DEFAULT_REDUCE_TEMPLATE)? {
         cfg.weekly_default_reduce_template = serde_json::from_str(&v).map_err(|e| e.to_string())?;
     }
-    if let Some(v) = get_kv(conn, "export_dir")? {
+    if let Some(v) = get_kv(conn, KEY_EXPORT_DIR)? {
         cfg.export_dir = serde_json::from_str(&v).map_err(|e| e.to_string())?;
     }
-    if let Some(v) = get_kv(conn, "collect_config")? {
+    if let Some(v) = get_kv(conn, KEY_COLLECT_CONFIG)? {
         cfg.collect_config = serde_json::from_str(&v).map_err(|e| e.to_string())?;
     }
     Ok(cfg)
@@ -125,15 +149,15 @@ fn get_kv(conn: &Connection, key: &str) -> Result<Option<String>, String> {
 
 fn config_pairs(cfg: &AppConfig) -> Result<Vec<(&'static str, String)>, String> {
     Ok(vec![
-        ("api_config", serde_json::to_string(&cfg.api_config).map_err(|e| e.to_string())?),
-        ("prompt_template", serde_json::to_string(&cfg.prompt_template).map_err(|e| e.to_string())?),
-        ("custom_default_template", serde_json::to_string(&cfg.custom_default_template).map_err(|e| e.to_string())?),
-        ("weekly_map_template", serde_json::to_string(&cfg.weekly_map_template).map_err(|e| e.to_string())?),
-        ("weekly_reduce_template", serde_json::to_string(&cfg.weekly_reduce_template).map_err(|e| e.to_string())?),
-        ("weekly_default_map_template", serde_json::to_string(&cfg.weekly_default_map_template).map_err(|e| e.to_string())?),
-        ("weekly_default_reduce_template", serde_json::to_string(&cfg.weekly_default_reduce_template).map_err(|e| e.to_string())?),
-        ("export_dir", serde_json::to_string(&cfg.export_dir).map_err(|e| e.to_string())?),
-        ("collect_config", serde_json::to_string(&cfg.collect_config).map_err(|e| e.to_string())?),
+        (KEY_API_CONFIG, serde_json::to_string(&cfg.api_config).map_err(|e| e.to_string())?),
+        (KEY_PROMPT_TEMPLATE, serde_json::to_string(&cfg.prompt_template).map_err(|e| e.to_string())?),
+        (KEY_CUSTOM_DEFAULT_TEMPLATE, serde_json::to_string(&cfg.custom_default_template).map_err(|e| e.to_string())?),
+        (KEY_WEEKLY_MAP_TEMPLATE, serde_json::to_string(&cfg.weekly_map_template).map_err(|e| e.to_string())?),
+        (KEY_WEEKLY_REDUCE_TEMPLATE, serde_json::to_string(&cfg.weekly_reduce_template).map_err(|e| e.to_string())?),
+        (KEY_WEEKLY_DEFAULT_MAP_TEMPLATE, serde_json::to_string(&cfg.weekly_default_map_template).map_err(|e| e.to_string())?),
+        (KEY_WEEKLY_DEFAULT_REDUCE_TEMPLATE, serde_json::to_string(&cfg.weekly_default_reduce_template).map_err(|e| e.to_string())?),
+        (KEY_EXPORT_DIR, serde_json::to_string(&cfg.export_dir).map_err(|e| e.to_string())?),
+        (KEY_COLLECT_CONFIG, serde_json::to_string(&cfg.collect_config).map_err(|e| e.to_string())?),
     ])
 }
 
@@ -239,8 +263,8 @@ pub struct LegacyAppConfig {
 /// 从旧 tauri-plugin-store 读取 legacy 配置(含历史)。无数据返回 `None`。
 pub fn read_legacy_from_store(app: &AppHandle) -> Result<Option<LegacyAppConfig>, String> {
     use tauri_plugin_store::StoreExt;
-    let store = app.store("data.json").map_err(|e| e.to_string())?;
-    match store.get("config") {
+    let store = app.store(LEGACY_STORE_FILE).map_err(|e| e.to_string())?;
+    match store.get(STORE_KEY_CONFIG) {
         Some(v) => {
             let leg: LegacyAppConfig = serde_json::from_value(v).map_err(|e| e.to_string())?;
             Ok(Some(leg))
@@ -256,7 +280,7 @@ pub fn migrate_from_store(
     conn: &Connection,
     legacy: Option<LegacyAppConfig>,
 ) -> Result<bool, String> {
-    if get_meta(conn, "migrated_from_store")?.is_some() {
+    if get_meta(conn, META_MIGRATED_FROM_STORE)?.is_some() {
         return Ok(false);
     }
     let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
@@ -284,11 +308,7 @@ pub fn migrate_from_store(
         };
         upsert_config(&tx, &cfg)?;
     }
-    tx.execute(
-        "INSERT OR REPLACE INTO meta(key, value) VALUES('migrated_from_store', '1')",
-        [],
-    )
-    .map_err(|e| e.to_string())?;
+    set_meta(&tx, META_MIGRATED_FROM_STORE, SCHEMA_VERSION_VALUE)?;
     tx.commit().map_err(|e| e.to_string())?;
     Ok(true)
 }
@@ -361,7 +381,7 @@ mod tests {
             weekly_default_reduce_template: "reduce默认".into(),
             export_dir: "D:\\export".into(),
             collect_config: CollectConfig {
-                enabled_tools: vec!["claude-code".into()],
+                enabled_tools: vec![crate::collector::TOOL_ID_CLAUDE_CODE.into()],
                 include_paths: vec!["D:\\work".into()],
                 exclude_paths: vec!["D:\\secret".into()],
                 tool_paths: Default::default(),
@@ -389,7 +409,7 @@ mod tests {
         let conn = Connection::open_in_memory().unwrap();
         init_db(&conn).unwrap();
         init_db(&conn).unwrap(); // 再次执行不报错
-        assert_eq!(get_meta(&conn, "schema_version").unwrap(), Some("1".into()));
+        assert_eq!(get_meta(&conn, META_SCHEMA_VERSION).unwrap(), Some(SCHEMA_VERSION_VALUE.into()));
     }
 
     #[test]
@@ -418,12 +438,10 @@ mod tests {
         // default_enabled_tools 回填 claude-code、zcode、codex 与 opencode
         assert_eq!(
             got.collect_config.enabled_tools,
-            vec![
-                "claude-code".to_string(),
-                "zcode".to_string(),
-                "codex".to_string(),
-                "opencode".to_string(),
-            ]
+            crate::collector::DEFAULT_TOOL_IDS
+                .iter()
+                .map(|s| s.to_string())
+                .collect::<Vec<_>>()
         );
     }
 
@@ -535,7 +553,7 @@ mod tests {
         assert_eq!(cfg.prompt_template, "t");
         assert_eq!(cfg.export_dir, "e");
         // 标记置位
-        assert_eq!(get_meta(&conn, "migrated_from_store")?, Some("1".into()));
+        assert_eq!(get_meta(&conn, META_MIGRATED_FROM_STORE)?, Some(SCHEMA_VERSION_VALUE.into()));
         Ok(())
     }
 
@@ -558,7 +576,7 @@ mod tests {
         assert_eq!(migrate_from_store(&conn, None)?, true);
         assert_eq!(fetch_history(&conn)?.len(), 0);
         assert_eq!(get_config(&conn)?.export_dir, ""); // 仍为默认
-        assert_eq!(get_meta(&conn, "migrated_from_store")?, Some("1".into()));
+        assert_eq!(get_meta(&conn, META_MIGRATED_FROM_STORE)?, Some(SCHEMA_VERSION_VALUE.into()));
         Ok(())
     }
 }

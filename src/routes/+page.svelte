@@ -5,9 +5,10 @@
     generateReport,
     collectConversations,
     COLLECT_TOOLS,
+    DEFAULT_TOOL_IDS,
     type CollectResult,
   } from "$lib/bindings";
-  import { config, history, notify, pendingInput } from "$lib/store";
+  import { config, history, notify, pendingInput, MSG_API_NOT_CONFIGURED } from "$lib/store";
   import ReportPanel from "$lib/components/ReportPanel.svelte";
 
   let input = $state("");
@@ -24,7 +25,7 @@
   // enabledTools 为空时回退到默认四个(与采集逻辑一致)。
   const enabledToolIds = $derived.by(() => {
     const t = $config.collectConfig?.enabledTools ?? [];
-    return t.length ? t : ["claude-code", "zcode", "codex", "opencode"];
+    return t.length ? t : DEFAULT_TOOL_IDS;
   });
   const collectSourceLabel = $derived(
     enabledToolIds
@@ -78,7 +79,7 @@
 
   async function onGenerate() {
     if (!$config.apiConfig.baseUrl || !$config.apiConfig.apiKey || !$config.apiConfig.model) {
-      notify("err", "请先在「设置」中配置 API");
+      notify("err", MSG_API_NOT_CONFIGURED);
       return;
     }
     const conv = conversationsText();

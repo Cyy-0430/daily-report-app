@@ -13,6 +13,11 @@
     DEFAULT_PROMPT_TEMPLATE,
     DEFAULT_WEEKLY_MAP_TEMPLATE,
     DEFAULT_WEEKLY_REDUCE_TEMPLATE,
+    TPL_DATE,
+    TPL_INPUT,
+    TPL_CONV,
+    TPL_DATE_RANGE,
+    TPL_DAY_SUMMARIES,
   } from "$lib/template";
   import { open } from "@tauri-apps/plugin-dialog";
 
@@ -256,8 +261,8 @@
         </div>
       </div>
       <p class="sec-hint">
-        变量：<code class="var">{"{{date}}"}</code>（今天，如 7.9）、<code class="var"
-          >{"{{input}}"}</code
+        变量：<code class="var">{TPL_DATE}</code>（今天，如 7.9）、<code class="var"
+          >{TPL_INPUT}</code
         >（左侧输入内容）
       </p>
       <textarea bind:value={template} class="field code tmpl"></textarea>
@@ -279,8 +284,8 @@
         </div>
       </div>
       <p class="sec-hint">
-        变量:<code class="var">{"{{date}}"}</code>(当天,如 8.4)、<code class="var"
-          >{"{{conversations}}"}</code
+        变量:<code class="var">{TPL_DATE}</code>(当天,如 8.4)、<code class="var"
+          >{TPL_CONV}</code
         >(当日对话)
       </p>
       <textarea bind:value={weeklyMap} class="field code tmpl"></textarea>
@@ -293,9 +298,9 @@
         </div>
       </div>
       <p class="sec-hint">
-        变量:<code class="var">{"{{date_range}}"}</code>(区间,如 8.4–8.10)、<code class="var"
-          >{"{{input}}"}</code
-        >(本周补充要点)、<code class="var">{"{{day_summaries}}"}</code>(各日摘要)
+        变量:<code class="var">{TPL_DATE_RANGE}</code>(区间,如 8.4–8.10)、<code class="var"
+          >{TPL_INPUT}</code
+        >(本周补充要点)、<code class="var">{TPL_DAY_SUMMARIES}</code>(各日摘要)
       </p>
       <textarea bind:value={weeklyReduce} class="field code tmpl"></textarea>
     </section>
@@ -320,7 +325,7 @@
       <div class="sec-title"><span class="num">D</span>采集工具</div>
       <p class="sec-hint">
         勾选日报生成时可自动读取的本地工具对话记录。模板变量 <code class="var"
-          >{"{{conversations}}"}</code
+          >{TPL_CONV}</code
         > 为采集到的当日对话（字段级过滤后，token 已大幅压缩）。
       </p>
       {#each COLLECT_TOOLS as t (t.id)}
