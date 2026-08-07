@@ -1,0 +1,4 @@
+{
+  "*.{ts,js,svelte,css,json,html,yml,yaml}": "prettier --write",
+  "*.rs": "rustfmt"
+}

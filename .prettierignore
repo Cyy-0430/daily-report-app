@@ -1,0 +1,19 @@
+# build / generated output
+node_modules
+build
+.svelte-kit
+dist
+src-tauri/target
+src-tauri/gen
+
+# lockfiles
+pnpm-lock.yaml
+package-lock.json
+
+# markdown — skip prose reflow churn (code-only formatting)
+*.md
+
+# vendored / local tooling configs — leave untouched
+.claude
+.trellis
+.husky
