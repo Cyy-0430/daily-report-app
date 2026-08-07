@@ -1,5 +1,5 @@
-import { writable } from "svelte/store";
-import { emptyConfig, loadConfig, listHistory, type AppConfig, type HistoryItem } from "./bindings";
+import { writable } from 'svelte/store';
+import { emptyConfig, loadConfig, listHistory, type AppConfig, type HistoryItem } from './bindings';
 
 /** 全局配置（API / 模板 / 导出目录 / 采集）。历史记录见 `history` store。 */
 export const config = writable<AppConfig>(emptyConfig());
@@ -9,15 +9,15 @@ export const configLoaded = writable(false);
 export const history = writable<HistoryItem[]>([]);
 
 /** 轻量 toast 提示。 */
-export const toast = writable<{ kind: "ok" | "err"; msg: string } | null>(null);
+export const toast = writable<{ kind: 'ok' | 'err'; msg: string } | null>(null);
 
 /** 历史记录「复用」时，回填到主页输入框的待处理内容。 */
 export const pendingInput = writable<string | null>(null);
 
 /** API 未配置时的统一提示文案。 */
-export const MSG_API_NOT_CONFIGURED = "请先在「设置」中配置 API";
+export const MSG_API_NOT_CONFIGURED = '请先在「设置」中配置 API';
 
-export function notify(kind: "ok" | "err", msg: string) {
+export function notify(kind: 'ok' | 'err', msg: string) {
   toast.set({ kind, msg });
   setTimeout(() => toast.set(null), 3000);
 }
@@ -28,7 +28,7 @@ export async function initConfig() {
     config.set(c);
     history.set(h);
   } catch (e) {
-    notify("err", String(e));
+    notify('err', String(e));
   } finally {
     configLoaded.set(true);
   }

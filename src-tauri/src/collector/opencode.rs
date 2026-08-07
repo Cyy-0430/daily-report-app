@@ -21,9 +21,9 @@
 //!   db 不存在或打开失败一律安静跳过,不阻断其它采集器。
 
 use super::claude_code::session_allowed;
-use super::zcode::{build_day_lines, ms_to_local};
 #[cfg(test)]
 use super::zcode::extract_from_parts;
+use super::zcode::{build_day_lines, ms_to_local};
 use super::{session_tokens, Collector, PathFilter, SessionDigest};
 use chrono::NaiveDate;
 use rusqlite::{params, Connection, OpenFlags};
@@ -150,9 +150,11 @@ impl Collector for OpencodeCollector {
                 .clone()
                 .filter(|t| !t.trim().is_empty())
                 .or_else(|| {
-                    directory
-                        .as_deref()
-                        .and_then(|d| Path::new(d).file_name().map(|n| n.to_string_lossy().into_owned()))
+                    directory.as_deref().and_then(|d| {
+                        Path::new(d)
+                            .file_name()
+                            .map(|n| n.to_string_lossy().into_owned())
+                    })
                 })
                 .unwrap_or_else(|| sid.clone());
 
@@ -191,7 +193,11 @@ impl Collector for OpencodeCollector {
 /// 无法定位主目录返回 None。
 fn db_path() -> Option<PathBuf> {
     let home = dirs::home_dir()?;
-    let primary = home.join(".local").join("share").join("opencode").join("opencode.db");
+    let primary = home
+        .join(".local")
+        .join("share")
+        .join("opencode")
+        .join("opencode.db");
     if primary.exists() {
         return Some(primary);
     }
@@ -329,7 +335,11 @@ mod tests {
     #[test]
     fn db_path_points_to_opencode_db() {
         let p = db_path().expect("应能定位主目录");
-        assert!(p.ends_with("opencode.db"), "文件名应为 opencode.db: {:?}", p);
+        assert!(
+            p.ends_with("opencode.db"),
+            "文件名应为 opencode.db: {:?}",
+            p
+        );
         // 父目录以 opencode 收尾(无论 .local/share/opencode 还是 XDG .../opencode)。
         let parent = p.parent().unwrap();
         assert!(
@@ -349,7 +359,11 @@ mod tests {
         let (digests, skipped) = OpencodeCollector
             .collect(date, &PathFilter::default(), None)
             .expect("采集不应报错");
-        println!("== opencode 采集 2026-08-03: sessions={}, skipped={} ==", digests.len(), skipped);
+        println!(
+            "== opencode 采集 2026-08-03: sessions={}, skipped={} ==",
+            digests.len(),
+            skipped
+        );
         for d in &digests {
             println!(
                 "  [{}] {} | cwd={:?} | {} lines | {} ~ {}",
@@ -357,9 +371,18 @@ mod tests {
             );
             for ln in d.lines.iter().take(3) {
                 let preview: String = ln.text.chars().take(50).collect();
-                println!("    {} {:?} {} (tools={})", ln.ts, ln.role, preview, ln.tools.len());
+                println!(
+                    "    {} {:?} {} (tools={})",
+                    ln.ts,
+                    ln.role,
+                    preview,
+                    ln.tools.len()
+                );
             }
         }
-        assert!(!digests.is_empty(), "2026-08-03 应至少采集到一个 opencode 会话");
+        assert!(
+            !digests.is_empty(),
+            "2026-08-03 应至少采集到一个 opencode 会话"
+        );
     }
 }

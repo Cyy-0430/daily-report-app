@@ -69,9 +69,9 @@ impl Collector for ZCodeCollector {
 
         // 主会话(parent_id IS NULL)。
         let sessions: Vec<(String, Option<String>, Option<String>)> = {
-            let Ok(mut stmt) = conn.prepare(
-                "SELECT id, directory, title FROM session WHERE parent_id IS NULL",
-            ) else {
+            let Ok(mut stmt) =
+                conn.prepare("SELECT id, directory, title FROM session WHERE parent_id IS NULL")
+            else {
                 return Ok((Vec::new(), 0));
             };
             stmt.query_map([], |r| {
@@ -146,9 +146,11 @@ impl Collector for ZCodeCollector {
                 .clone()
                 .filter(|t| !t.trim().is_empty())
                 .or_else(|| {
-                    directory
-                        .as_deref()
-                        .and_then(|d| Path::new(d).file_name().map(|n| n.to_string_lossy().into_owned()))
+                    directory.as_deref().and_then(|d| {
+                        Path::new(d)
+                            .file_name()
+                            .map(|n| n.to_string_lossy().into_owned())
+                    })
                 })
                 .unwrap_or_else(|| sid.clone());
 
@@ -417,7 +419,11 @@ mod tests {
         let (digests, skipped) = ZCodeCollector
             .collect(date, &PathFilter::default(), None)
             .expect("采集不应报错");
-        println!("== ZCode 采集 2026-07-13: sessions={}, skipped={} ==", digests.len(), skipped);
+        println!(
+            "== ZCode 采集 2026-07-13: sessions={}, skipped={} ==",
+            digests.len(),
+            skipped
+        );
         for d in &digests {
             println!(
                 "  [{}] {} | cwd={:?} | {} lines | {} ~ {}",
@@ -425,9 +431,18 @@ mod tests {
             );
             for ln in d.lines.iter().take(3) {
                 let preview: String = ln.text.chars().take(50).collect();
-                println!("    {} {:?} {} (tools={})", ln.ts, ln.role, preview, ln.tools.len());
+                println!(
+                    "    {} {:?} {} (tools={})",
+                    ln.ts,
+                    ln.role,
+                    preview,
+                    ln.tools.len()
+                );
             }
         }
-        assert!(!digests.is_empty(), "2026-07-13 应至少采集到一个 ZCode 主会话");
+        assert!(
+            !digests.is_empty(),
+            "2026-07-13 应至少采集到一个 ZCode 主会话"
+        );
     }
 }

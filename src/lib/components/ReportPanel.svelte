@@ -1,16 +1,16 @@
 <script lang="ts">
-  import { renderMarkdown } from "$lib/markdown";
-  import { exportReport, writeTextFile } from "$lib/bindings";
-  import { notify } from "$lib/store";
-  import { save } from "@tauri-apps/plugin-dialog";
-  import { writeText } from "@tauri-apps/plugin-clipboard-manager";
+  import { renderMarkdown } from '$lib/markdown';
+  import { exportReport, writeTextFile } from '$lib/bindings';
+  import { notify } from '$lib/store';
+  import { save } from '@tauri-apps/plugin-dialog';
+  import { writeText } from '@tauri-apps/plugin-clipboard-manager';
 
   // output 双向绑定(父组件流式写入);busy/label/exportName 只读。
   let {
-    output = $bindable(""),
+    output = $bindable(''),
     busy = false,
-    label = "日报",
-    exportName = "report",
+    label = '日报',
+    exportName = 'report',
   }: {
     output?: string;
     busy?: boolean;
@@ -18,16 +18,16 @@
     exportName?: string;
   } = $props();
 
-  let mode = $state<"edit" | "preview">("preview");
+  let mode = $state<'edit' | 'preview'>('preview');
   let html = $derived(renderMarkdown(output));
 
   async function onCopy() {
     if (!output) return;
     try {
       await writeText(output);
-      notify("ok", "已复制到剪贴板");
+      notify('ok', '已复制到剪贴板');
     } catch (e) {
-      notify("err", String(e));
+      notify('err', String(e));
     }
   }
 
@@ -36,32 +36,32 @@
     try {
       const saved = await exportReport(output);
       if (saved) {
-        notify("ok", `已导出：${saved}`);
+        notify('ok', `已导出：${saved}`);
         return;
       }
       const path = await save({
         defaultPath: `${exportName}.md`,
-        filters: [{ name: "Markdown", extensions: ["md"] }],
+        filters: [{ name: 'Markdown', extensions: ['md'] }],
       });
       if (!path) return;
       await writeTextFile(path, output);
-      notify("ok", `已导出：${path}`);
+      notify('ok', `已导出：${path}`);
     } catch (e) {
-      notify("err", String(e));
+      notify('err', String(e));
     }
   }
 </script>
 
 <section class="panel">
   <div class="panel-head">
-    <span class="panel-label">02 — {mode === "edit" ? "编辑" : label}</span>
+    <span class="panel-label">02 — {mode === 'edit' ? '编辑' : label}</span>
     <div class="head-actions">
       <button
         class="btn btn-ghost btn-sm"
-        onclick={() => (mode = mode === "edit" ? "preview" : "edit")}
+        onclick={() => (mode = mode === 'edit' ? 'preview' : 'edit')}
         disabled={!output || busy}
       >
-        {mode === "edit" ? "预览" : "编辑"}
+        {mode === 'edit' ? '预览' : '编辑'}
       </button>
       <button class="btn btn-ghost btn-sm" onclick={onCopy} disabled={!output || busy}>
         复制
@@ -73,16 +73,18 @@
   </div>
 
   <div class="editor-body">
-    {#if mode === "edit"}
+    {#if mode === 'edit'}
       <textarea bind:value={output} class="editor-textarea is-code"></textarea>
     {:else if output}
       <!-- svelte-ignore a11y_no_noninteractive_element_interactions a11y_click_events_have_key_events -->
       <article
         class="md-body"
         onclick={onCopy}
-        onkeydown={(e) => (e.key === "Enter" || e.key === " ") && onCopy()}
-        title="点击复制全部内容">{@html html}</article
+        onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && onCopy()}
+        title="点击复制全部内容"
       >
+        {@html html}
+      </article>
     {:else}
       <div class="editor-empty">
         <span class="empty-mark">▍</span>
@@ -92,7 +94,7 @@
   </div>
 
   <div class="panel-foot">
-    <span class="meta">{busy ? "streaming…" : output ? `约 ${output.length} 字` : ""}</span>
+    <span class="meta">{busy ? 'streaming…' : output ? `约 ${output.length} 字` : ''}</span>
   </div>
 </section>
 

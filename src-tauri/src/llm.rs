@@ -1,4 +1,4 @@
-use crate::collector::{collect_range_days, parse_target_date, FMT_DATE, PathFilterParam};
+use crate::collector::{collect_range_days, parse_target_date, PathFilterParam, FMT_DATE};
 use crate::config::{load_config, ApiConfig, HistoryItem};
 use crate::db::{insert_history, DbState};
 use chrono::{Datelike, NaiveDate};
@@ -54,9 +54,13 @@ const EMPTY_SUMMARIES: &str = "（无）";
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase", tag = "type")]
 pub enum StreamChunk {
-    Delta { text: String },
+    Delta {
+        text: String,
+    },
     Done,
-    Error { message: String },
+    Error {
+        message: String,
+    },
     /// 周报 map/reduce 进度(前端展示步骤文案 + 进度条)。
     Progress {
         stage: String,
@@ -69,12 +73,7 @@ pub enum StreamChunk {
 /// 周/日报重试次数(额外重试数,总尝试 = retries+1)。
 const RETRIES: u32 = 3;
 
-pub fn render_template(
-    template: &str,
-    input: &str,
-    date_md: &str,
-    conversations: &str,
-) -> String {
+pub fn render_template(template: &str, input: &str, date_md: &str, conversations: &str) -> String {
     template
         .replace(TPL_DATE, date_md)
         .replace(TPL_INPUT, input)
@@ -89,7 +88,12 @@ fn render_weekly_map(template: &str, date: &str, conversations: &str) -> String 
 }
 
 /// 渲染周报 reduce(整周汇总)提示词。
-fn render_weekly_reduce(template: &str, date_range: &str, input: &str, day_summaries: &str) -> String {
+fn render_weekly_reduce(
+    template: &str,
+    date_range: &str,
+    input: &str,
+    day_summaries: &str,
+) -> String {
     template
         .replace(TPL_DATE_RANGE, date_range)
         .replace(TPL_INPUT, input)
@@ -343,9 +347,7 @@ pub async fn generate_stream(
             Ok(full)
         }
         Err(e) => {
-            let _ = on_event.send(StreamChunk::Error {
-                message: e.clone(),
-            });
+            let _ = on_event.send(StreamChunk::Error { message: e.clone() });
             Err(e)
         }
     }
@@ -491,7 +493,12 @@ pub async fn generate_weekly_report(
         done += 1;
         match res {
             Ok(s) => {
-                summaries[i] = Some(format!("### {}（{}）\n{}", date_md(d), d.format(FMT_DATE), s));
+                summaries[i] = Some(format!(
+                    "### {}（{}）\n{}",
+                    date_md(d),
+                    d.format(FMT_DATE),
+                    s
+                ));
                 let _ = on_event.send(StreamChunk::Progress {
                     stage: STAGE_MAP.into(),
                     current: done,
@@ -554,9 +561,7 @@ pub async fn generate_weekly_report(
             t
         }
         Err(e) => {
-            let _ = on_event.send(StreamChunk::Error {
-                message: e.clone(),
-            });
+            let _ = on_event.send(StreamChunk::Error { message: e.clone() });
             return Err(e);
         }
     };

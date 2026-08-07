@@ -1,4 +1,4 @@
-import { invoke, Channel } from "@tauri-apps/api/core";
+import { invoke, Channel } from '@tauri-apps/api/core';
 
 export interface ApiConfig {
   baseUrl: string;
@@ -44,12 +44,12 @@ export interface AppConfig {
 }
 
 export type StreamChunk =
-  | { type: "delta"; text: string }
-  | { type: "done" }
-  | { type: "error"; message: string }
+  | { type: 'delta'; text: string }
+  | { type: 'done' }
+  | { type: 'error'; message: string }
   | {
-      type: "progress";
-      stage: "map" | "reduce";
+      type: 'progress';
+      stage: 'map' | 'reduce';
       current: number;
       total: number;
       message: string;
@@ -57,7 +57,7 @@ export type StreamChunk =
 
 export interface ConversationLine {
   ts: string;
-  role: "user" | "assistant";
+  role: 'user' | 'assistant';
   text: string;
   tools: string[];
 }
@@ -113,12 +113,12 @@ export const COLLECT_TOOLS: {
   label: string;
   hint: string;
   /** 数据源类型:dir=扫描目录下的会话文件;file=打开单个 SQLite db 文件。仅展示用。 */
-  kind: "dir" | "file";
+  kind: 'dir' | 'file';
 }[] = [
-  { id: "claude-code", label: "Claude Code", hint: "~/.claude/projects", kind: "dir" },
-  { id: "zcode", label: "ZCode", hint: "~/.zcode/cli/db", kind: "file" },
-  { id: "codex", label: "Codex", hint: "~/.codex/sessions", kind: "dir" },
-  { id: "opencode", label: "Opencode", hint: "~/.local/share/opencode", kind: "file" },
+  { id: 'claude-code', label: 'Claude Code', hint: '~/.claude/projects', kind: 'dir' },
+  { id: 'zcode', label: 'ZCode', hint: '~/.zcode/cli/db', kind: 'file' },
+  { id: 'codex', label: 'Codex', hint: '~/.codex/sessions', kind: 'dir' },
+  { id: 'opencode', label: 'Opencode', hint: '~/.local/share/opencode', kind: 'file' },
 ];
 
 /** 默认启用的采集工具 id 列表(派生自 COLLECT_TOOLS,单一来源;与 Rust DEFAULT_TOOL_IDS 对齐)。 */
@@ -126,14 +126,14 @@ export const DEFAULT_TOOL_IDS: string[] = COLLECT_TOOLS.map((t) => t.id);
 
 export function emptyConfig(): AppConfig {
   return {
-    apiConfig: { baseUrl: "", apiKey: "", model: "" },
-    promptTemplate: "",
-    customDefaultTemplate: "",
-    weeklyMapTemplate: "",
-    weeklyReduceTemplate: "",
-    weeklyDefaultMapTemplate: "",
-    weeklyDefaultReduceTemplate: "",
-    exportDir: "",
+    apiConfig: { baseUrl: '', apiKey: '', model: '' },
+    promptTemplate: '',
+    customDefaultTemplate: '',
+    weeklyMapTemplate: '',
+    weeklyReduceTemplate: '',
+    weeklyDefaultMapTemplate: '',
+    weeklyDefaultReduceTemplate: '',
+    exportDir: '',
     collectConfig: {
       enabledTools: DEFAULT_TOOL_IDS,
       includePaths: [],
@@ -143,16 +143,16 @@ export function emptyConfig(): AppConfig {
   };
 }
 
-export const loadConfig = () => invoke<AppConfig>("load_config");
-export const saveConfig = (config: AppConfig) => invoke<void>("save_config", { config });
-export const testConnection = (api: ApiConfig) => invoke<string>("test_connection", { api });
-export const exportReport = (content: string) => invoke<string | null>("export_report", { content });
+export const loadConfig = () => invoke<AppConfig>('load_config');
+export const saveConfig = (config: AppConfig) => invoke<void>('save_config', { config });
+export const testConnection = (api: ApiConfig) => invoke<string>('test_connection', { api });
+export const exportReport = (content: string) =>
+  invoke<string | null>('export_report', { content });
 export const writeTextFile = (path: string, content: string) =>
-  invoke<void>("write_text_file", { path, content });
+  invoke<void>('write_text_file', { path, content });
 
 /** 各采集工具数据源的默认路径(已展开 ~),供设置页展示与「恢复默认」。键=工具 id。 */
-export const defaultCollectPaths = () =>
-  invoke<Record<string, string>>("default_collect_paths");
+export const defaultCollectPaths = () => invoke<Record<string, string>>('default_collect_paths');
 
 /**
  * 采集指定日期、指定工具的本地对话记录,并按 filter 做路径过滤。
@@ -164,7 +164,7 @@ export const collectConversations = (
   tools: string[],
   filter: PathFilter,
   toolPaths: Record<string, string>,
-) => invoke<CollectResult>("collect_conversations", { date, tools, filter, toolPaths });
+) => invoke<CollectResult>('collect_conversations', { date, tools, filter, toolPaths });
 
 /**
  * 采集区间(含首尾)内逐日的对话记录。逐日单日切片采集,每日一个 DayCollect
@@ -178,7 +178,7 @@ export const collectConversationsRange = (
   filter: PathFilter,
   toolPaths: Record<string, string>,
 ) =>
-  invoke<RangeCollectResult>("collect_conversations_range", {
+  invoke<RangeCollectResult>('collect_conversations_range', {
     start,
     end,
     tools,
@@ -187,9 +187,9 @@ export const collectConversationsRange = (
   });
 
 /** 历史记录(独立于配置,存于 SQLite)。 */
-export const listHistory = () => invoke<HistoryItem[]>("list_history");
-export const addHistory = (item: HistoryItem) => invoke<void>("add_history", { item });
-export const removeHistory = (id: string) => invoke<void>("remove_history", { id });
+export const listHistory = () => invoke<HistoryItem[]>('list_history');
+export const addHistory = (item: HistoryItem) => invoke<void>('add_history', { item });
+export const removeHistory = (id: string) => invoke<void>('remove_history', { id });
 
 /** 流式生成日报;成功时返回已保存的 HistoryItem。onMessage 在每个分片/完成/错误时回调。 */
 export function generateReport(
@@ -199,7 +199,7 @@ export function generateReport(
 ): Promise<HistoryItem> {
   const channel = new Channel<StreamChunk>();
   channel.onmessage = onMessage;
-  return invoke<HistoryItem>("generate_report", { input, conversations, onEvent: channel });
+  return invoke<HistoryItem>('generate_report', { input, conversations, onEvent: channel });
 }
 
 /**
@@ -218,7 +218,7 @@ export function generateWeeklyReport(
 ): Promise<HistoryItem> {
   const channel = new Channel<StreamChunk>();
   channel.onmessage = onMessage;
-  return invoke<HistoryItem>("generate_weekly_report", {
+  return invoke<HistoryItem>('generate_weekly_report', {
     start,
     end,
     tools,

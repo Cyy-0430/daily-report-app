@@ -1,18 +1,18 @@
 <script lang="ts">
-  import "../app.css";
-  import { onMount } from "svelte";
-  import { page } from "$app/stores";
-  import { getCurrentWindow } from "@tauri-apps/api/window";
-  import { initConfig, toast } from "$lib/store";
+  import '../app.css';
+  import { onMount } from 'svelte';
+  import { page } from '$app/stores';
+  import { getCurrentWindow } from '@tauri-apps/api/window';
+  import { initConfig, toast } from '$lib/store';
 
   let { children } = $props();
   const appWindow = getCurrentWindow();
 
   const nav = [
-    { href: "/", label: "日报" },
-    { href: "/weekly", label: "周报" },
-    { href: "/settings", label: "设置" },
-    { href: "/history", label: "历史" },
+    { href: '/', label: '日报' },
+    { href: '/weekly', label: '周报' },
+    { href: '/settings', label: '设置' },
+    { href: '/history', label: '历史' },
   ];
 
   onMount(() => {
@@ -29,11 +29,7 @@
       </a>
       <nav class="nav">
         {#each nav as item}
-          <a
-            href={item.href}
-            class="nav-link"
-            class:active={$page.url.pathname === item.href}
-          >
+          <a href={item.href} class="nav-link" class:active={$page.url.pathname === item.href}>
             {item.label}
           </a>
         {/each}
@@ -47,7 +43,9 @@
         aria-label="最小化"
         onclick={() => appWindow.minimize()}
       >
-        <svg viewBox="0 0 10 10" aria-hidden="true"><rect x="1.5" y="4.6" width="7" height="1" fill="currentColor" /></svg>
+        <svg viewBox="0 0 10 10" aria-hidden="true"
+          ><rect x="1.5" y="4.6" width="7" height="1" fill="currentColor" /></svg
+        >
       </button>
       <button
         class="win-btn"
@@ -55,7 +53,18 @@
         aria-label="最大化"
         onclick={() => appWindow.toggleMaximize()}
       >
-        <svg viewBox="0 0 10 10" aria-hidden="true"><rect x="1.6" y="1.6" width="6.8" height="6.8" rx="1" fill="none" stroke="currentColor" stroke-width="1.1" /></svg>
+        <svg viewBox="0 0 10 10" aria-hidden="true"
+          ><rect
+            x="1.6"
+            y="1.6"
+            width="6.8"
+            height="6.8"
+            rx="1"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.1"
+          /></svg
+        >
       </button>
       <button
         class="win-btn close"
@@ -63,7 +72,9 @@
         aria-label="关闭"
         onclick={() => appWindow.close()}
       >
-        <svg viewBox="0 0 10 10" aria-hidden="true"><path d="M2 2l6 6M8 2l-6 6" stroke="currentColor" stroke-width="1.2" fill="none" /></svg>
+        <svg viewBox="0 0 10 10" aria-hidden="true"
+          ><path d="M2 2l6 6M8 2l-6 6" stroke="currentColor" stroke-width="1.2" fill="none" /></svg
+        >
       </button>
     </div>
   </header>
@@ -170,7 +181,9 @@
     cursor: pointer;
     color: var(--ink-soft);
     border-radius: 7px;
-    transition: background 0.15s, color 0.15s;
+    transition:
+      background 0.15s,
+      color 0.15s;
   }
   .win-btn svg {
     width: 11px;

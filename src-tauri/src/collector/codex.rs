@@ -112,16 +112,15 @@ fn collect_jsonl_files(dir: &Path, out: &mut Vec<PathBuf>) {
 
 /// 解析单个 rollout jsonl 为 session(仅保留目标日期的行)。
 /// 返回 (Option<SessionDigest>, 跳过行数)。
-fn parse_session(
-    path: &Path,
-    tool_name: &str,
-    date: NaiveDate,
-) -> (Option<SessionDigest>, usize) {
+fn parse_session(path: &Path, tool_name: &str, date: NaiveDate) -> (Option<SessionDigest>, usize) {
     // session_id 优先取 session_meta.payload.session_id,回退用文件名里的 uuid 段。
     let file_uuid = path
         .file_name()
         .and_then(|n| n.to_str())
-        .and_then(|s| s.rsplit_once('-').map(|(_, u)| u.trim_end_matches(".jsonl")))
+        .and_then(|s| {
+            s.rsplit_once('-')
+                .map(|(_, u)| u.trim_end_matches(".jsonl"))
+        })
         .unwrap_or("")
         .to_string();
 
@@ -250,7 +249,9 @@ fn extract_line(ev: &Value) -> Option<(Role, String, Vec<String>)> {
                 Some(tool_only(name, key))
             }
             "local_shell_call" => {
-                let key = p["action"]["command"].as_str().map(|s| super::truncate(s, super::TOOL_KEY_MAX_LEN));
+                let key = p["action"]["command"]
+                    .as_str()
+                    .map(|s| super::truncate(s, super::TOOL_KEY_MAX_LEN));
                 Some(tool_only("shell", key))
             }
             // message(developer/user/assistant 原始 API 消息)→ 整类丢弃(噪声 + 重复)。
@@ -288,9 +289,17 @@ fn clean_message(msg: &str) -> (String, Vec<String>) {
     /// 一个可识别的块:开标记前缀、闭标记、是否提取工具名。
     struct Block(&'static str, &'static str, bool);
     const BLOCKS: &[Block] = &[
-        Block("[external_agent_tool_result]", "[/external_agent_tool_result]", false),
+        Block(
+            "[external_agent_tool_result]",
+            "[/external_agent_tool_result]",
+            false,
+        ),
         // call 开标记是前缀(后接 `: NAME]` 或 `]`),闭标记固定。
-        Block("[external_agent_tool_call", "[/external_agent_tool_call]", true),
+        Block(
+            "[external_agent_tool_call",
+            "[/external_agent_tool_call]",
+            true,
+        ),
         Block("<task-notification>", "</task-notification>", false),
         Block("<command-name>", "</command-name>", false),
         Block("<command-message>", "</command-message>", false),
@@ -303,9 +312,10 @@ fn clean_message(msg: &str) -> (String, Vec<String>) {
     let mut cursor = 0usize;
     while cursor < msg.len() {
         // 在 cursor 及之后找最早出现的开标记。
-        let earliest: Option<(usize, &Block)> = BLOCKS.iter().filter_map(|b| {
-            msg[cursor..].find(b.0).map(|off| (cursor + off, b))
-        }).min_by_key(|(pos, _)| *pos);
+        let earliest: Option<(usize, &Block)> = BLOCKS
+            .iter()
+            .filter_map(|b| msg[cursor..].find(b.0).map(|off| (cursor + off, b)))
+            .min_by_key(|(pos, _)| *pos);
 
         let Some((start, block)) = earliest else {
             text.push_str(&msg[cursor..]);
@@ -321,8 +331,21 @@ fn clean_message(msg: &str) -> (String, Vec<String>) {
                 Some(rel) => start + rel + 1,
                 None => {
                     // 无 `]`:开标记残缺,当普通文本保留并前进一字节组(避免死循环)。
-                    text.push_str(&msg[start..start + msg[start..].chars().next().map(|c| c.len_utf8()).unwrap_or(1)]);
-                    cursor = start + msg[start..].chars().next().map(|c| c.len_utf8()).unwrap_or(1);
+                    text.push_str(
+                        &msg[start
+                            ..start
+                                + msg[start..]
+                                    .chars()
+                                    .next()
+                                    .map(|c| c.len_utf8())
+                                    .unwrap_or(1)],
+                    );
+                    cursor = start
+                        + msg[start..]
+                            .chars()
+                            .next()
+                            .map(|c| c.len_utf8())
+                            .unwrap_or(1);
                     continue;
                 }
             }
@@ -332,7 +355,7 @@ fn clean_message(msg: &str) -> (String, Vec<String>) {
 
         // 提取工具名(call 块):开标记内 `: NAME` 的 NAME。
         if block.2 {
-            let inner_open = &msg[start + block.0.len() .. open_end.saturating_sub(1)];
+            let inner_open = &msg[start + block.0.len()..open_end.saturating_sub(1)];
             let name = inner_open.trim_start_matches(':').trim();
             if !name.is_empty() {
                 tools.push(super::truncate(name, super::TOOL_KEY_MAX_LEN));
@@ -397,7 +420,8 @@ mod tests {
     /// 策略①:event_msg user_message → User 文本。
     #[test]
     fn extract_user_message() {
-        let ev = v(r#"{"type":"event_msg","payload":{"type":"user_message","message":"帮我重构登录"}}"#);
+        let ev =
+            v(r#"{"type":"event_msg","payload":{"type":"user_message","message":"帮我重构登录"}}"#);
         let (role, text, tools) = extract_line(&ev).expect("应有内容");
         assert!(matches!(role, Role::User));
         assert_eq!(text, "帮我重构登录");
@@ -407,7 +431,9 @@ mod tests {
     /// 策略①:event_msg agent_message → Assistant 文本。
     #[test]
     fn extract_agent_message() {
-        let ev = v(r#"{"type":"event_msg","payload":{"type":"agent_message","message":"好的，开始重构","phase":"final_answer"}}"#);
+        let ev = v(
+            r#"{"type":"event_msg","payload":{"type":"agent_message","message":"好的，开始重构","phase":"final_answer"}}"#,
+        );
         let (role, text, tools) = extract_line(&ev).expect("应有内容");
         assert!(matches!(role, Role::Assistant));
         assert_eq!(text, "好的，开始重构");
@@ -433,10 +459,14 @@ mod tests {
     /// 策略①:response_item/message(developer 注入噪声)整类丢弃 → None。
     #[test]
     fn extract_skips_response_item_message() {
-        let ev = v(r#"{"type":"response_item","payload":{"type":"message","role":"developer","content":[{"type":"input_text","text":"<permissions>…"}]}}"#);
+        let ev = v(
+            r#"{"type":"response_item","payload":{"type":"message","role":"developer","content":[{"type":"input_text","text":"<permissions>…"}]}}"#,
+        );
         assert!(extract_line(&ev).is_none());
         // user/assistant 原始 API 消息同样丢弃(已由 event_msg 干净覆盖)。
-        let ev = v(r#"{"type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"x"}]}}"#);
+        let ev = v(
+            r#"{"type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"x"}]}}"#,
+        );
         assert!(extract_line(&ev).is_none());
     }
 
@@ -444,7 +474,9 @@ mod tests {
     #[test]
     fn extract_function_call() {
         // arguments 是 JSON 编码字符串。
-        let ev = v(r#"{"type":"response_item","payload":{"type":"function_call","name":"Read","arguments":"{\"file_path\":\"src/a.ts\"}"}}"#);
+        let ev = v(
+            r#"{"type":"response_item","payload":{"type":"function_call","name":"Read","arguments":"{\"file_path\":\"src/a.ts\"}"}}"#,
+        );
         let (role, text, tools) = extract_line(&ev).expect("应有内容");
         assert!(matches!(role, Role::Assistant));
         assert!(text.is_empty());
@@ -454,7 +486,9 @@ mod tests {
     /// function_call:command 参数回退。
     #[test]
     fn extract_function_call_command() {
-        let ev = v(r#"{"type":"response_item","payload":{"type":"function_call","name":"Bash","arguments":"{\"command\":\"git log\"}"}}"#);
+        let ev = v(
+            r#"{"type":"response_item","payload":{"type":"function_call","name":"Bash","arguments":"{\"command\":\"git log\"}"}}"#,
+        );
         let (_, _, tools) = extract_line(&ev).expect("应有内容");
         assert_eq!(tools, vec!["Bash: git log"]);
     }
@@ -462,7 +496,9 @@ mod tests {
     /// function_call:arguments 为对象(非常规但容错)。
     #[test]
     fn extract_function_call_object_args() {
-        let ev = v(r#"{"type":"response_item","payload":{"type":"function_call","name":"Read","arguments":{"file_path":"x.ts"}}}"#);
+        let ev = v(
+            r#"{"type":"response_item","payload":{"type":"function_call","name":"Read","arguments":{"file_path":"x.ts"}}}"#,
+        );
         let (_, _, tools) = extract_line(&ev).expect("应有内容");
         assert_eq!(tools, vec!["Read: x.ts"]);
     }
@@ -470,7 +506,9 @@ mod tests {
     /// local_shell_call → "shell: <command>"(本机无样本,合成)。
     #[test]
     fn extract_local_shell_call() {
-        let ev = v(r#"{"type":"response_item","payload":{"type":"local_shell_call","action":{"command":"ls -la"}}}"#);
+        let ev = v(
+            r#"{"type":"response_item","payload":{"type":"local_shell_call","action":{"command":"ls -la"}}}"#,
+        );
         let (role, text, tools) = extract_line(&ev).expect("应有内容");
         assert!(matches!(role, Role::Assistant));
         assert!(text.is_empty());
@@ -489,7 +527,9 @@ mod tests {
     /// 策略①:剥离内嵌的 `[external_agent_tool_result]` 全文(= tool_result),只留正文。
     #[test]
     fn clean_strips_tool_result_block() {
-        let ev = v(r#"{"type":"event_msg","payload":{"type":"agent_message","message":"我看一下文件\n[external_agent_tool_result] 1\tpackage main\n2\tfunc main(){}\n[/external_agent_tool_result]\n找到了问题"}}"#);
+        let ev = v(
+            r#"{"type":"event_msg","payload":{"type":"agent_message","message":"我看一下文件\n[external_agent_tool_result] 1\tpackage main\n2\tfunc main(){}\n[/external_agent_tool_result]\n找到了问题"}}"#,
+        );
         let (role, text, tools) = extract_line(&ev).expect("应有内容");
         assert!(matches!(role, Role::Assistant));
         assert!(!text.contains("package main"));
@@ -501,7 +541,9 @@ mod tests {
     /// 策略①:`[external_agent_tool_call: NAME]` → 提取 NAME 为工具摘要;正文保留。
     #[test]
     fn clean_extracts_tool_call_name() {
-        let ev = v(r#"{"type":"event_msg","payload":{"type":"agent_message","message":"开始\n[external_agent_tool_call: Bash]\ninput: {\"command\":\"git log\"}\n[/external_agent_tool_call]\n[external_agent_tool_result]commit abc\n[/external_agent_tool_result]完成"}}"#);
+        let ev = v(
+            r#"{"type":"event_msg","payload":{"type":"agent_message","message":"开始\n[external_agent_tool_call: Bash]\ninput: {\"command\":\"git log\"}\n[/external_agent_tool_call]\n[external_agent_tool_result]commit abc\n[/external_agent_tool_result]完成"}}"#,
+        );
         let (role, text, tools) = extract_line(&ev).expect("应有内容");
         assert!(matches!(role, Role::Assistant));
         assert!(!text.contains("git log"));
@@ -513,21 +555,27 @@ mod tests {
     /// 策略①:agent_message 整条都是 tool_result → 剥光后无内容 → None。
     #[test]
     fn clean_entirely_result_is_none() {
-        let ev = v(r#"{"type":"event_msg","payload":{"type":"agent_message","message":"[external_agent_tool_result]一大段文件全文……\n多行\n[/external_agent_tool_result]"}}"#);
+        let ev = v(
+            r#"{"type":"event_msg","payload":{"type":"agent_message","message":"[external_agent_tool_result]一大段文件全文……\n多行\n[/external_agent_tool_result]"}}"#,
+        );
         assert!(extract_line(&ev).is_none());
     }
 
     /// 策略①:slash 命令回显(`<command-*>`)被剥除;剥光后纯命令 → None。
     #[test]
     fn clean_drops_command_echo() {
-        let ev = v(r#"{"type":"event_msg","payload":{"type":"user_message","message":"<command-name>/clear</command-name>\n<command-message>clear</command-message>\n<command-args></command-args>"}}"#);
+        let ev = v(
+            r#"{"type":"event_msg","payload":{"type":"user_message","message":"<command-name>/clear</command-name>\n<command-message>clear</command-message>\n<command-args></command-args>"}}"#,
+        );
         assert!(extract_line(&ev).is_none());
     }
 
     /// 策略①:`<task-notification>` 与 `<local-command-stdout>` 被剥除。
     #[test]
     fn clean_drops_notification_and_stdout() {
-        let ev = v(r#"{"type":"event_msg","payload":{"type":"user_message","message":"<task-notification><task-id>x</task-id></task-notification>实际输入<local-command-stdout>噪声</local-command-stdout>"}}"#);
+        let ev = v(
+            r#"{"type":"event_msg","payload":{"type":"user_message","message":"<task-notification><task-id>x</task-id></task-notification>实际输入<local-command-stdout>噪声</local-command-stdout>"}}"#,
+        );
         let (_, text, _) = extract_line(&ev).expect("应有内容");
         assert_eq!(text, "实际输入");
     }
@@ -552,7 +600,10 @@ mod tests {
     /// project 名:cwd basename;无 cwd 回退 session_id 前 8 位。
     #[test]
     fn project_name_fallbacks() {
-        assert_eq!(project_name(Some("D:\\hand\\yqnf\\yqnf-contract"), "s1"), "yqnf-contract");
+        assert_eq!(
+            project_name(Some("D:\\hand\\yqnf\\yqnf-contract"), "s1"),
+            "yqnf-contract"
+        );
         assert_eq!(project_name(None, "019fb603-abcd"), "019fb603");
         assert_eq!(project_name(Some("D:\\"), "019fb603"), "019fb603");
     }
@@ -567,9 +618,12 @@ mod tests {
         let path = dir.join("rollout-2026-07-31T10-00-00-abc.jsonl");
         let body = format!(
             concat!(
-                r#"{{"timestamp":"{t0}","type":"session_meta","payload":{{"cwd":"D:\\proj","session_id":"abc"}}}}"#, "\n",
-                r#"{{"timestamp":"{t0}","type":"event_msg","payload":{{"type":"user_message","message":"七月的问题"}}}}"#, "\n",
-                r#"{{"timestamp":"{t1}","type":"event_msg","payload":{{"type":"agent_message","message":"八月的回复"}}}}"#, "\n"
+                r#"{{"timestamp":"{t0}","type":"session_meta","payload":{{"cwd":"D:\\proj","session_id":"abc"}}}}"#,
+                "\n",
+                r#"{{"timestamp":"{t0}","type":"event_msg","payload":{{"type":"user_message","message":"七月的问题"}}}}"#,
+                "\n",
+                r#"{{"timestamp":"{t1}","type":"event_msg","payload":{{"type":"agent_message","message":"八月的回复"}}}}"#,
+                "\n"
             ),
             t0 = "2026-07-31T02:00:00Z",
             t1 = "2026-08-01T01:00:00Z"
@@ -612,7 +666,11 @@ mod tests {
         let (digests, skipped) = CodexCollector
             .collect(date, &PathFilter::default(), None)
             .expect("采集不应报错");
-        println!("== Codex 采集 2026-07-31: sessions={}, skipped={} ==", digests.len(), skipped);
+        println!(
+            "== Codex 采集 2026-07-31: sessions={}, skipped={} ==",
+            digests.len(),
+            skipped
+        );
         for d in &digests {
             println!(
                 "  [{}] {} | cwd={:?} | {} lines | {} ~ {}",
@@ -620,9 +678,18 @@ mod tests {
             );
             for ln in d.lines.iter().take(3) {
                 let preview: String = ln.text.chars().take(50).collect();
-                println!("    {} {:?} {} (tools={})", ln.ts, ln.role, preview, ln.tools.len());
+                println!(
+                    "    {} {:?} {} (tools={})",
+                    ln.ts,
+                    ln.role,
+                    preview,
+                    ln.tools.len()
+                );
             }
         }
-        assert!(!digests.is_empty(), "2026-07-31 应至少采集到一个 Codex 会话");
+        assert!(
+            !digests.is_empty(),
+            "2026-07-31 应至少采集到一个 Codex 会话"
+        );
     }
 }

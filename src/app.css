@@ -1,4 +1,4 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
 :root {
   --paper: #f3eee3;
@@ -12,10 +12,8 @@
   --accent-2: #b9492f;
   --ok: #3d6b4e;
 
-  --sans: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Segoe UI",
-    system-ui, sans-serif;
-  --mono: ui-monospace, "JetBrains Mono", "Cascadia Code", "SF Mono", Menlo,
-    Consolas, monospace;
+  --sans: 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Segoe UI', system-ui, sans-serif;
+  --mono: ui-monospace, 'JetBrains Mono', 'Cascadia Code', 'SF Mono', Menlo, Consolas, monospace;
 }
 
 * {
@@ -36,7 +34,7 @@ body {
   background-image: radial-gradient(rgba(70, 58, 38, 0.04) 1px, transparent 1px);
   background-size: 16px 16px;
   -webkit-font-smoothing: antialiased;
-  font-feature-settings: "tnum" 1;
+  font-feature-settings: 'tnum' 1;
 }
 
 ::selection {
@@ -70,7 +68,11 @@ body {
   border-radius: 7px;
   border: 1px solid transparent;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s, border-color 0.15s, opacity 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s,
+    border-color 0.15s,
+    opacity 0.15s;
   white-space: nowrap;
 }
 .btn:disabled {
@@ -150,7 +152,9 @@ body {
   font-family: var(--sans);
   color: var(--ink);
   outline: none;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
 }
 .field:focus {
   border-color: var(--ink);

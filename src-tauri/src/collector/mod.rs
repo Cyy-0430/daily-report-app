@@ -295,7 +295,9 @@ fn collect_blocking(
         result.sessions.extend(sessions);
     }
     // 跨工具按时间统一排序。
-    result.sessions.sort_by(|a, b| a.started_at.cmp(&b.started_at));
+    result
+        .sessions
+        .sort_by(|a, b| a.started_at.cmp(&b.started_at));
     let (text, tokens) = render(&result.sessions);
     result.rendered_text = text;
     result.est_tokens = tokens;
@@ -311,7 +313,11 @@ pub(crate) fn collect_range_days(
     filter: &PathFilter,
     tool_paths: &HashMap<String, String>,
 ) -> Result<Vec<(NaiveDate, CollectResult)>, String> {
-    let (start, end) = if end < start { (end, start) } else { (start, end) };
+    let (start, end) = if end < start {
+        (end, start)
+    } else {
+        (start, end)
+    };
     let mut out = Vec::new();
     let mut d = start;
     loop {
@@ -455,7 +461,10 @@ mod tests {
         assert_eq!(expand_home("   "), None);
 
         // 绝对路径 / 无 `~` 前缀 → 原样返回(去首尾空白)。
-        assert_eq!(expand_home("D:/work/app"), Some(PathBuf::from("D:/work/app")));
+        assert_eq!(
+            expand_home("D:/work/app"),
+            Some(PathBuf::from("D:/work/app"))
+        );
         assert_eq!(expand_home("  D:\\work  "), Some(PathBuf::from("D:\\work")));
     }
 

@@ -1,18 +1,18 @@
 <script lang="ts">
-  import { onMount } from "svelte";
-  import { get } from "svelte/store";
+  import { onMount } from 'svelte';
+  import { get } from 'svelte/store';
   import {
     generateReport,
     collectConversations,
     COLLECT_TOOLS,
     DEFAULT_TOOL_IDS,
     type CollectResult,
-  } from "$lib/bindings";
-  import { config, history, notify, pendingInput, MSG_API_NOT_CONFIGURED } from "$lib/store";
-  import ReportPanel from "$lib/components/ReportPanel.svelte";
+  } from '$lib/bindings';
+  import { config, history, notify, pendingInput, MSG_API_NOT_CONFIGURED } from '$lib/store';
+  import ReportPanel from '$lib/components/ReportPanel.svelte';
 
-  let input = $state("");
-  let output = $state("");
+  let input = $state('');
+  let output = $state('');
   let busy = $state(false);
 
   // 采集相关
@@ -28,15 +28,13 @@
     return t.length ? t : DEFAULT_TOOL_IDS;
   });
   const collectSourceLabel = $derived(
-    enabledToolIds
-      .map((id) => COLLECT_TOOLS.find((t) => t.id === id)?.label ?? id)
-      .join(", "),
+    enabledToolIds.map((id) => COLLECT_TOOLS.find((t) => t.id === id)?.label ?? id).join(', '),
   );
 
   function todayStr(): string {
     const d = new Date();
-    const mm = String(d.getMonth() + 1).padStart(2, "0");
-    const dd = String(d.getDate()).padStart(2, "0");
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
     return `${d.getFullYear()}-${mm}-${dd}`;
   }
 
@@ -49,7 +47,7 @@
   });
 
   function conversationsText(): string {
-    return collectResult?.renderedText ?? "";
+    return collectResult?.renderedText ?? '';
   }
 
   async function onCollect() {
@@ -66,12 +64,12 @@
       const res = await collectConversations(collectDate, tools, filter, cfg?.toolPaths ?? {});
       collectResult = res;
       if (res.sessions.length === 0) {
-        notify("err", `${collectDate} 无对话记录`);
+        notify('err', `${collectDate} 无对话记录`);
       } else {
-        notify("ok", `已采集 ${res.sessions.length} 个会话 · 约 ${res.estTokens} token`);
+        notify('ok', `已采集 ${res.sessions.length} 个会话 · 约 ${res.estTokens} token`);
       }
     } catch (e) {
-      notify("err", String(e));
+      notify('err', String(e));
     } finally {
       collecting = false;
     }
@@ -79,25 +77,25 @@
 
   async function onGenerate() {
     if (!$config.apiConfig.baseUrl || !$config.apiConfig.apiKey || !$config.apiConfig.model) {
-      notify("err", MSG_API_NOT_CONFIGURED);
+      notify('err', MSG_API_NOT_CONFIGURED);
       return;
     }
     const conv = conversationsText();
     if (!input.trim() && !conv.trim()) {
-      notify("err", "请填写今日要点，或先「采集对话」");
+      notify('err', '请填写今日要点，或先「采集对话」');
       return;
     }
     busy = true;
-    output = "";
+    output = '';
     try {
       const item = await generateReport(input, conv, (chunk) => {
-        if (chunk.type === "delta") output += chunk.text;
-        else if (chunk.type === "error") notify("err", chunk.message);
+        if (chunk.type === 'delta') output += chunk.text;
+        else if (chunk.type === 'error') notify('err', chunk.message);
       });
       history.update((h) => [item, ...h]);
-      notify("ok", "生成完成");
+      notify('ok', '生成完成');
     } catch (e) {
-      notify("err", String(e));
+      notify('err', String(e));
     } finally {
       busy = false;
     }
@@ -118,8 +116,8 @@
       <button
         class="btn btn-ghost btn-sm"
         onclick={() => {
-          input = "";
-          output = "";
+          input = '';
+          output = '';
           collectResult = null;
           showConversations = false;
         }}
@@ -133,7 +131,7 @@
       <span class="collect-src">来源：{collectSourceLabel}</span>
       {#if !collectResult || collectResult.sessions.length === 0}
         <button class="btn btn-ghost btn-sm" onclick={onCollect} disabled={busy || collecting}>
-          {collecting ? "采集中…" : "采集对话"}
+          {collecting ? '采集中…' : '采集对话'}
         </button>
       {:else if collectResult}
         <span class="meta collect-meta">
@@ -148,7 +146,7 @@
           onclick={() => (showConversations = !showConversations)}
           disabled={!collectResult.renderedText}
         >
-          {showConversations ? "收起" : "查看"}
+          {showConversations ? '收起' : '查看'}
         </button>
       {/if}
     </div>
@@ -160,18 +158,17 @@
     <textarea
       bind:value={input}
       placeholder="用要点写下今天做的事，越具体越好…（也可留空，点上方「采集对话」自动汇总）"
-      class="editor-textarea"
-    ></textarea>
+      class="editor-textarea"></textarea>
     <div class="panel-foot">
       <span class="meta">{input.length} 字</span>
       <button class="btn btn-primary" onclick={onGenerate} disabled={busy}>
-        {busy ? "生成中…" : "生成日报"}<span class="arrow">→</span>
+        {busy ? '生成中…' : '生成日报'}<span class="arrow">→</span>
       </button>
     </div>
   </section>
 
   <!-- 02 · 日报 -->
-  <ReportPanel bind:output busy={busy} label="日报" exportName={collectDate} />
+  <ReportPanel bind:output {busy} label="日报" exportName={collectDate} />
 </div>
 
 <style>

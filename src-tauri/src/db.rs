@@ -91,11 +91,9 @@ fn set_meta(conn: &Connection, key: &str, value: &str) -> Result<(), String> {
 }
 
 pub fn get_meta(conn: &Connection, key: &str) -> Result<Option<String>, String> {
-    conn.query_row(
-        "SELECT value FROM meta WHERE key=?1",
-        params![key],
-        |row| row.get::<_, String>(0),
-    )
+    conn.query_row("SELECT value FROM meta WHERE key=?1", params![key], |row| {
+        row.get::<_, String>(0)
+    })
     .optional()
     .map_err(|e| e.to_string())
 }
@@ -149,15 +147,43 @@ fn get_kv(conn: &Connection, key: &str) -> Result<Option<String>, String> {
 
 fn config_pairs(cfg: &AppConfig) -> Result<Vec<(&'static str, String)>, String> {
     Ok(vec![
-        (KEY_API_CONFIG, serde_json::to_string(&cfg.api_config).map_err(|e| e.to_string())?),
-        (KEY_PROMPT_TEMPLATE, serde_json::to_string(&cfg.prompt_template).map_err(|e| e.to_string())?),
-        (KEY_CUSTOM_DEFAULT_TEMPLATE, serde_json::to_string(&cfg.custom_default_template).map_err(|e| e.to_string())?),
-        (KEY_WEEKLY_MAP_TEMPLATE, serde_json::to_string(&cfg.weekly_map_template).map_err(|e| e.to_string())?),
-        (KEY_WEEKLY_REDUCE_TEMPLATE, serde_json::to_string(&cfg.weekly_reduce_template).map_err(|e| e.to_string())?),
-        (KEY_WEEKLY_DEFAULT_MAP_TEMPLATE, serde_json::to_string(&cfg.weekly_default_map_template).map_err(|e| e.to_string())?),
-        (KEY_WEEKLY_DEFAULT_REDUCE_TEMPLATE, serde_json::to_string(&cfg.weekly_default_reduce_template).map_err(|e| e.to_string())?),
-        (KEY_EXPORT_DIR, serde_json::to_string(&cfg.export_dir).map_err(|e| e.to_string())?),
-        (KEY_COLLECT_CONFIG, serde_json::to_string(&cfg.collect_config).map_err(|e| e.to_string())?),
+        (
+            KEY_API_CONFIG,
+            serde_json::to_string(&cfg.api_config).map_err(|e| e.to_string())?,
+        ),
+        (
+            KEY_PROMPT_TEMPLATE,
+            serde_json::to_string(&cfg.prompt_template).map_err(|e| e.to_string())?,
+        ),
+        (
+            KEY_CUSTOM_DEFAULT_TEMPLATE,
+            serde_json::to_string(&cfg.custom_default_template).map_err(|e| e.to_string())?,
+        ),
+        (
+            KEY_WEEKLY_MAP_TEMPLATE,
+            serde_json::to_string(&cfg.weekly_map_template).map_err(|e| e.to_string())?,
+        ),
+        (
+            KEY_WEEKLY_REDUCE_TEMPLATE,
+            serde_json::to_string(&cfg.weekly_reduce_template).map_err(|e| e.to_string())?,
+        ),
+        (
+            KEY_WEEKLY_DEFAULT_MAP_TEMPLATE,
+            serde_json::to_string(&cfg.weekly_default_map_template).map_err(|e| e.to_string())?,
+        ),
+        (
+            KEY_WEEKLY_DEFAULT_REDUCE_TEMPLATE,
+            serde_json::to_string(&cfg.weekly_default_reduce_template)
+                .map_err(|e| e.to_string())?,
+        ),
+        (
+            KEY_EXPORT_DIR,
+            serde_json::to_string(&cfg.export_dir).map_err(|e| e.to_string())?,
+        ),
+        (
+            KEY_COLLECT_CONFIG,
+            serde_json::to_string(&cfg.collect_config).map_err(|e| e.to_string())?,
+        ),
     ])
 }
 
@@ -167,7 +193,8 @@ fn upsert_config(conn: &Connection, cfg: &AppConfig) -> Result<(), String> {
         .prepare("INSERT OR REPLACE INTO config(key, value) VALUES(?1, ?2)")
         .map_err(|e| e.to_string())?;
     for (key, value) in config_pairs(cfg)? {
-        stmt.execute(params![key, value]).map_err(|e| e.to_string())?;
+        stmt.execute(params![key, value])
+            .map_err(|e| e.to_string())?;
     }
     Ok(())
 }
@@ -216,7 +243,14 @@ pub fn insert_history(conn: &Connection, item: &HistoryItem) -> Result<(), Strin
     conn.execute(
         "INSERT OR REPLACE INTO history(id, date, title, input, output, created_at) \
          VALUES(?1, ?2, ?3, ?4, ?5, ?6)",
-        params![item.id, item.date, item.title, item.input, item.output, item.created_at],
+        params![
+            item.id,
+            item.date,
+            item.title,
+            item.input,
+            item.output,
+            item.created_at
+        ],
     )
     .map_err(|e| e.to_string())?;
     Ok(())
@@ -290,7 +324,14 @@ pub fn migrate_from_store(
             tx.execute(
                 "INSERT OR IGNORE INTO history(id, date, title, input, output, created_at) \
                  VALUES(?1, ?2, ?3, ?4, ?5, ?6)",
-                params![item.id, item.date, item.title, item.input, item.output, item.created_at],
+                params![
+                    item.id,
+                    item.date,
+                    item.title,
+                    item.input,
+                    item.output,
+                    item.created_at
+                ],
             )
             .map_err(|e| e.to_string())?;
         }
@@ -409,7 +450,10 @@ mod tests {
         let conn = Connection::open_in_memory().unwrap();
         init_db(&conn).unwrap();
         init_db(&conn).unwrap(); // 再次执行不报错
-        assert_eq!(get_meta(&conn, META_SCHEMA_VERSION).unwrap(), Some(SCHEMA_VERSION_VALUE.into()));
+        assert_eq!(
+            get_meta(&conn, META_SCHEMA_VERSION).unwrap(),
+            Some(SCHEMA_VERSION_VALUE.into())
+        );
     }
 
     #[test]
@@ -424,9 +468,18 @@ mod tests {
         assert_eq!(got.prompt_template, cfg.prompt_template);
         assert_eq!(got.custom_default_template, cfg.custom_default_template);
         assert_eq!(got.export_dir, cfg.export_dir);
-        assert_eq!(got.collect_config.enabled_tools, cfg.collect_config.enabled_tools);
-        assert_eq!(got.collect_config.include_paths, cfg.collect_config.include_paths);
-        assert_eq!(got.collect_config.exclude_paths, cfg.collect_config.exclude_paths);
+        assert_eq!(
+            got.collect_config.enabled_tools,
+            cfg.collect_config.enabled_tools
+        );
+        assert_eq!(
+            got.collect_config.include_paths,
+            cfg.collect_config.include_paths
+        );
+        assert_eq!(
+            got.collect_config.exclude_paths,
+            cfg.collect_config.exclude_paths
+        );
     }
 
     #[test]
@@ -553,7 +606,10 @@ mod tests {
         assert_eq!(cfg.prompt_template, "t");
         assert_eq!(cfg.export_dir, "e");
         // 标记置位
-        assert_eq!(get_meta(&conn, META_MIGRATED_FROM_STORE)?, Some(SCHEMA_VERSION_VALUE.into()));
+        assert_eq!(
+            get_meta(&conn, META_MIGRATED_FROM_STORE)?,
+            Some(SCHEMA_VERSION_VALUE.into())
+        );
         Ok(())
     }
 
@@ -576,7 +632,10 @@ mod tests {
         assert_eq!(migrate_from_store(&conn, None)?, true);
         assert_eq!(fetch_history(&conn)?.len(), 0);
         assert_eq!(get_config(&conn)?.export_dir, ""); // 仍为默认
-        assert_eq!(get_meta(&conn, META_MIGRATED_FROM_STORE)?, Some(SCHEMA_VERSION_VALUE.into()));
+        assert_eq!(
+            get_meta(&conn, META_MIGRATED_FROM_STORE)?,
+            Some(SCHEMA_VERSION_VALUE.into())
+        );
         Ok(())
     }
 }

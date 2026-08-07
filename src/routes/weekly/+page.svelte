@@ -5,17 +5,17 @@
     COLLECT_TOOLS,
     DEFAULT_TOOL_IDS,
     type RangeCollectResult,
-  } from "$lib/bindings";
-  import { config, history, notify, MSG_API_NOT_CONFIGURED } from "$lib/store";
-  import ReportPanel from "$lib/components/ReportPanel.svelte";
+  } from '$lib/bindings';
+  import { config, history, notify, MSG_API_NOT_CONFIGURED } from '$lib/store';
+  import ReportPanel from '$lib/components/ReportPanel.svelte';
 
   let startDate = $state(mondayStr());
   let endDate = $state(todayStr());
   let collecting = $state(false);
   let rangeResult = $state<RangeCollectResult | null>(null);
 
-  let weeklyInput = $state("");
-  let output = $state("");
+  let weeklyInput = $state('');
+  let output = $state('');
   let busy = $state(false);
   // 当前进度(map/reduce);null = 未在生成。
   let progress = $state<{ stage: string; current: number; total: number; message: string } | null>(
@@ -30,9 +30,7 @@
     return t.length ? t : DEFAULT_TOOL_IDS;
   });
   const collectSourceLabel = $derived(
-    enabledToolIds
-      .map((id) => COLLECT_TOOLS.find((t) => t.id === id)?.label ?? id)
-      .join(", "),
+    enabledToolIds.map((id) => COLLECT_TOOLS.find((t) => t.id === id)?.label ?? id).join(', '),
   );
   // 区间内是否有一天 token 超阈值。
   const hasOversizedDay = $derived(
@@ -55,8 +53,8 @@
     return fmt(mon);
   }
   function fmt(d: Date): string {
-    const mm = String(d.getMonth() + 1).padStart(2, "0");
-    const dd = String(d.getDate()).padStart(2, "0");
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
     return `${d.getFullYear()}-${mm}-${dd}`;
   }
 
@@ -79,12 +77,12 @@
       rangeResult = res;
       const sessions = res.days.reduce((n, d) => n + d.sessions.length, 0);
       if (sessions === 0) {
-        notify("err", `${startDate} ~ ${endDate} 无对话记录`);
+        notify('err', `${startDate} ~ ${endDate} 无对话记录`);
       } else {
-        notify("ok", `已采集 ${sessions} 个会话 · 约 ${res.totalTokens} token`);
+        notify('ok', `已采集 ${sessions} 个会话 · 约 ${res.totalTokens} token`);
       }
     } catch (e) {
-      notify("err", String(e));
+      notify('err', String(e));
     } finally {
       collecting = false;
     }
@@ -92,11 +90,11 @@
 
   async function onGenerate() {
     if (!apiReady) {
-      notify("err", MSG_API_NOT_CONFIGURED);
+      notify('err', MSG_API_NOT_CONFIGURED);
       return;
     }
     busy = true;
-    output = "";
+    output = '';
     progress = null;
     try {
       const cfg = $config.collectConfig;
@@ -112,15 +110,15 @@
         cfg?.toolPaths ?? {},
         weeklyInput,
         (chunk) => {
-          if (chunk.type === "delta") output += chunk.text;
-          else if (chunk.type === "progress") progress = chunk;
-          else if (chunk.type === "error") notify("err", chunk.message);
+          if (chunk.type === 'delta') output += chunk.text;
+          else if (chunk.type === 'progress') progress = chunk;
+          else if (chunk.type === 'error') notify('err', chunk.message);
         },
       );
       history.update((h) => [item, ...h]);
-      notify("ok", "周报生成完成");
+      notify('ok', '周报生成完成');
     } catch (e) {
-      notify("err", String(e));
+      notify('err', String(e));
     } finally {
       busy = false;
       progress = null;
@@ -134,15 +132,25 @@
     <div class="panel-head">
       <span class="panel-label">01 — 区间采集</span>
       <div class="range-pick">
-        <input class="collect-date" type="date" bind:value={startDate} disabled={busy || collecting} />
+        <input
+          class="collect-date"
+          type="date"
+          bind:value={startDate}
+          disabled={busy || collecting}
+        />
         <span class="sep">~</span>
-        <input class="collect-date" type="date" bind:value={endDate} disabled={busy || collecting} />
+        <input
+          class="collect-date"
+          type="date"
+          bind:value={endDate}
+          disabled={busy || collecting}
+        />
       </div>
       <button
         class="btn btn-ghost btn-sm"
         onclick={() => {
-          weeklyInput = "";
-          output = "";
+          weeklyInput = '';
+          output = '';
           rangeResult = null;
         }}
         disabled={busy}
@@ -154,11 +162,12 @@
     <div class="collect-bar">
       <span class="collect-src">来源：{collectSourceLabel}</span>
       <button class="btn btn-ghost btn-sm" onclick={onCollectRange} disabled={busy || collecting}>
-        {collecting ? "采集中…" : "采集区间"}
+        {collecting ? '采集中…' : '采集区间'}
       </button>
       {#if rangeResult}
         <span class="meta collect-meta">
-          {rangeResult.days.reduce((n, d) => n + d.sessions.length, 0)} 会话 · 约 {rangeResult.totalTokens} token
+          {rangeResult.days.reduce((n, d) => n + d.sessions.length, 0)} 会话 · 约 {rangeResult.totalTokens}
+          token
         </span>
       {/if}
     </div>
@@ -182,11 +191,13 @@
     {#if progress}
       <div class="progress-row">
         <span class="progress-msg">
-          {progress.stage === "reduce" ? "正在汇总…" : progress.message}
+          {progress.stage === 'reduce' ? '正在汇总…' : progress.message}
         </span>
         {#if progress.total > 1}
           <span class="progress-count">{progress.current}/{progress.total}</span>
-          <div class="progress-bar"><div class="fill" style="width:{(progress.current / progress.total) * 100}%"></div></div>
+          <div class="progress-bar">
+            <div class="fill" style="width:{(progress.current / progress.total) * 100}%"></div>
+          </div>
         {/if}
       </div>
     {/if}
@@ -194,19 +205,18 @@
     <textarea
       bind:value={weeklyInput}
       placeholder="本周补充要点（可选）：会议、非编码工作、本周目标等日志里没有的内容……"
-      class="editor-textarea"
-    ></textarea>
+      class="editor-textarea"></textarea>
 
     <div class="panel-foot">
       <span class="meta">{weeklyInput.length} 字</span>
       <button class="btn btn-primary" onclick={onGenerate} disabled={busy || collecting}>
-        {busy ? "生成中…" : "生成周报"}<span class="arrow">→</span>
+        {busy ? '生成中…' : '生成周报'}<span class="arrow">→</span>
       </button>
     </div>
   </section>
 
   <!-- 02 · 周报 -->
-  <ReportPanel bind:output busy={busy} label="周报" exportName={`${startDate}_${endDate}`} />
+  <ReportPanel bind:output {busy} label="周报" exportName={`${startDate}_${endDate}`} />
 </div>
 
 <style>

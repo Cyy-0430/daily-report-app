@@ -1,9 +1,9 @@
 <script lang="ts">
-  import { removeHistory, type HistoryItem } from "$lib/bindings";
-  import { history, notify, pendingInput } from "$lib/store";
-  import { writeText } from "@tauri-apps/plugin-clipboard-manager";
-  import { goto } from "$app/navigation";
-  import { renderMarkdown } from "$lib/markdown";
+  import { removeHistory, type HistoryItem } from '$lib/bindings';
+  import { history, notify, pendingInput } from '$lib/store';
+  import { writeText } from '@tauri-apps/plugin-clipboard-manager';
+  import { goto } from '$app/navigation';
+  import { renderMarkdown } from '$lib/markdown';
 
   let expanded = $state<Record<string, boolean>>({});
 
@@ -11,23 +11,23 @@
     try {
       await removeHistory(id);
       history.update((h) => h.filter((x) => x.id !== id));
-      notify("ok", "已删除");
+      notify('ok', '已删除');
     } catch (e) {
-      notify("err", String(e));
+      notify('err', String(e));
     }
   }
 
   function reuse(item: HistoryItem) {
     pendingInput.set(item.input);
-    goto("/");
+    goto('/');
   }
 
   async function copy(item: HistoryItem) {
     try {
       await writeText(item.output);
-      notify("ok", "已复制");
+      notify('ok', '已复制');
     } catch (e) {
-      notify("err", String(e));
+      notify('err', String(e));
     }
   }
 </script>
@@ -60,12 +60,9 @@
                   class="btn btn-ghost btn-sm"
                   onclick={() => (expanded[item.id] = !expanded[item.id])}
                 >
-                  {expanded[item.id] ? "收起" : "查看"}
+                  {expanded[item.id] ? '收起' : '查看'}
                 </button>
-                <button
-                  class="btn btn-ghost btn-sm danger"
-                  onclick={() => remove(item.id)}
-                >
+                <button class="btn btn-ghost btn-sm danger" onclick={() => remove(item.id)}>
                   删除
                 </button>
               </div>

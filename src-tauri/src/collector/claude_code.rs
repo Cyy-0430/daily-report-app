@@ -109,7 +109,11 @@ pub(super) fn norm(p: &str) -> PathBuf {
 /// - cwd 为 `None`:includes 非空 → 拒绝(无法证实白名单);否则放行。
 ///
 /// 匹配基于规范化后的**组件级**前缀:子目录继承父级规则。
-pub(super) fn session_allowed(cwd: Option<&Path>, includes: &[PathBuf], excludes: &[PathBuf]) -> bool {
+pub(super) fn session_allowed(
+    cwd: Option<&Path>,
+    includes: &[PathBuf],
+    excludes: &[PathBuf],
+) -> bool {
     let Some(cwd) = cwd else {
         // cwd 未知:无法匹配黑名单;白名单非空则一律拒绝,否则放行。
         return includes.is_empty();
@@ -352,7 +356,11 @@ mod tests {
     fn allowed_work_not_workplace() {
         let inc = vec![np("D:\\work")];
         assert!(session_allowed(Some(Path::new("D:\\work")), &inc, &[]));
-        assert!(!session_allowed(Some(Path::new("D:\\workplace")), &inc, &[]));
+        assert!(!session_allowed(
+            Some(Path::new("D:\\workplace")),
+            &inc,
+            &[]
+        ));
         assert!(!session_allowed(Some(Path::new("D:\\work2")), &inc, &[]));
     }
 
@@ -375,14 +383,26 @@ mod tests {
     fn allowed_exclude_overrides_include() {
         let inc = vec![np("D:\\work")];
         let exc = vec![np("D:\\work\\secret")];
-        assert!(session_allowed(Some(Path::new("D:\\work\\app")), &inc, &exc));
-        assert!(!session_allowed(Some(Path::new("D:\\work\\secret")), &inc, &exc));
+        assert!(session_allowed(
+            Some(Path::new("D:\\work\\app")),
+            &inc,
+            &exc
+        ));
+        assert!(!session_allowed(
+            Some(Path::new("D:\\work\\secret")),
+            &inc,
+            &exc
+        ));
         assert!(!session_allowed(
             Some(Path::new("D:\\work\\secret\\deep")),
             &inc,
             &exc
         ));
-        assert!(!session_allowed(Some(Path::new("D:\\personal")), &inc, &exc));
+        assert!(!session_allowed(
+            Some(Path::new("D:\\personal")),
+            &inc,
+            &exc
+        ));
     }
 
     /// 空规则 = 不过滤(默认行为,所有路径放行)。
@@ -396,7 +416,11 @@ mod tests {
     fn allowed_exclude_subtree() {
         let exc = vec![np("D:\\aaaa")];
         assert!(!session_allowed(Some(Path::new("D:\\aaaa")), &[], &exc));
-        assert!(!session_allowed(Some(Path::new("D:\\aaaa\\sub")), &[], &exc));
+        assert!(!session_allowed(
+            Some(Path::new("D:\\aaaa\\sub")),
+            &[],
+            &exc
+        ));
         assert!(session_allowed(Some(Path::new("D:\\bbbb")), &[], &exc));
     }
 
@@ -419,7 +443,11 @@ mod tests {
         assert!(session_allowed(Some(Path::new("D:\\work\\SUB")), &inc, &[]));
         // 黑名单大小写也无关
         let exc = vec![np("D:\\Secret")];
-        assert!(!session_allowed(Some(Path::new("d:\\secret\\x")), &[], &exc));
+        assert!(!session_allowed(
+            Some(Path::new("d:\\secret\\x")),
+            &[],
+            &exc
+        ));
     }
 
     /// cwd 为 None:白名单非空→拒绝,否则放行。
