@@ -270,11 +270,15 @@
     {#if activeTab === 'api'}
       <!-- API 配置 -->
       <section class="panel sec">
-        <div class="sec-title">API 配置</div>
-        <p class="sec-hint">
-          填写接口地址、模型与密钥即可连接。兼容 OpenAI 接口格式，可接
-          DeepSeek、通义千问、Moonshot、本地 Ollama 等。
-        </p>
+        <div class="sec-title">
+          API 配置
+          <span class="help" tabindex="0" role="button" aria-label="说明"
+            >?<span class="tip"
+              >填写接口地址、模型与密钥即可连接。兼容 OpenAI 接口格式，可接
+              DeepSeek、通义千问、Moonshot、本地 Ollama 等。</span
+            ></span
+          >
+        </div>
         <div class="grid-2">
           <label class="fld">
             <span>BaseURL</span>
@@ -308,11 +312,15 @@
 
       <!-- 导出目录 -->
       <section class="panel sec">
-        <div class="sec-title">导出目录</div>
-        <p class="sec-hint">
-          日报导出时默认存到这里。留空则每次导出时手动选择保存位置；文件名默认为当天日期，如
-          2025-08-14.md。
-        </p>
+        <div class="sec-title">
+          导出目录
+          <span class="help" tabindex="0" role="button" aria-label="说明"
+            >?<span class="tip"
+              >日报导出时默认存到这里。留空则每次导出时手动选择保存位置；文件名默认为当天日期，如
+              2025-08-14.md。</span
+            ></span
+          >
+        </div>
         <div class="row-input">
           <input class="field" bind:value={exportDir} placeholder="例如 D:\\Reports" />
           <button class="btn btn-ghost" onclick={pickDir}>选择…</button>
@@ -323,64 +331,83 @@
       <!-- 日报模板 -->
       <section class="panel sec">
         <div class="sec-title-row">
-          <div class="sec-title">日报模板</div>
+          <div class="sec-title">
+            日报模板
+            <span class="help" tabindex="0" role="button" aria-label="说明"
+              >?<span class="tip"
+                >这份提示词决定日报的写作风格与结构。占位符：<code class="var">{TPL_DATE}</code>
+                自动填入今天日期，<code class="var">{TPL_INPUT}</code> 填入你在左侧写的今日要点。</span
+              ></span
+            >
+          </div>
           <div class="sec-actions-row">
             <button class="btn btn-ghost btn-sm" onclick={setAsDefault}>设为默认</button>
             <button class="btn btn-ghost btn-sm" onclick={resetTemplate}>恢复默认</button>
           </div>
         </div>
-        <p class="sec-hint">
-          这份提示词决定日报的写作风格与结构。占位符：<code class="var">{TPL_DATE}</code>
-          自动填入今天日期，<code class="var">{TPL_INPUT}</code> 填入你在左侧写的今日要点。
-        </p>
         <textarea bind:value={template} class="field code tmpl"></textarea>
       </section>
 
       <!-- 周报模板 -->
       <section class="panel sec">
-        <div class="sec-title">周报模板</div>
-        <p class="sec-hint">
-          周报分两步生成：第一步用「每日摘要模板」逐日提炼每天的对话，第二步用「整周汇总模板」把每天的摘要归纳成一份完整周报。
-        </p>
+        <div class="sec-title">
+          周报模板
+          <span class="help" tabindex="0" role="button" aria-label="说明"
+            >?<span class="tip"
+              >周报分两步生成：第一步用「每日摘要模板」逐日提炼每天的对话，第二步用「整周汇总模板」把每天的摘要归纳成一份完整周报。</span
+            ></span
+          >
+        </div>
 
         <div class="sec-title-row">
-          <div class="sub-title">每日摘要模板</div>
+          <div class="sub-title">
+            每日摘要模板
+            <span class="help" tabindex="0" role="button" aria-label="说明"
+              >?<span class="tip"
+                >用于提炼单日对话的摘要。占位符：<code class="var">{TPL_DATE}</code> 当天日期，<code
+                  class="var">{TPL_CONV}</code
+                > 当日对话内容。</span
+              ></span
+            >
+          </div>
           <div class="sec-actions-row">
             <button class="btn btn-ghost btn-sm" onclick={setWeeklyMapDefault}>设为默认</button>
             <button class="btn btn-ghost btn-sm" onclick={resetWeeklyMap}>恢复默认</button>
           </div>
         </div>
-        <p class="sec-hint">
-          用于提炼单日对话的摘要。占位符：<code class="var">{TPL_DATE}</code> 当天日期，<code
-            class="var">{TPL_CONV}</code
-          > 当日对话内容。
-        </p>
         <textarea bind:value={weeklyMap} class="field code tmpl"></textarea>
 
         <div class="sec-title-row">
-          <div class="sub-title">整周汇总模板</div>
+          <div class="sub-title">
+            整周汇总模板
+            <span class="help" tabindex="0" role="button" aria-label="说明"
+              >?<span class="tip"
+                >用于把各日摘要汇总成周报。占位符：<code class="var">{TPL_DATE_RANGE}</code>
+                本周日期范围，<code class="var">{TPL_INPUT}</code> 你补充的本周要点，<code
+                  class="var">{TPL_DAY_SUMMARIES}</code
+                > 各日摘要。</span
+              ></span
+            >
+          </div>
           <div class="sec-actions-row">
             <button class="btn btn-ghost btn-sm" onclick={setWeeklyReduceDefault}>设为默认</button>
             <button class="btn btn-ghost btn-sm" onclick={resetWeeklyReduce}>恢复默认</button>
           </div>
         </div>
-        <p class="sec-hint">
-          用于把各日摘要汇总成周报。占位符：<code class="var">{TPL_DATE_RANGE}</code>
-          本周日期范围，<code class="var">{TPL_INPUT}</code> 你补充的本周要点，<code class="var"
-            >{TPL_DAY_SUMMARIES}</code
-          > 各日摘要。
-        </p>
         <textarea bind:value={weeklyReduce} class="field code tmpl"></textarea>
       </section>
     {:else}
       <!-- 采集工具 -->
       <section class="panel sec">
-        <div class="sec-title">采集工具</div>
-        <p class="sec-hint">
-          勾选你在用的本地编程工具，生成日报时会自动读取这些工具当天的对话。采集到的对话会作为占位符 <code
-            class="var">{TPL_CONV}</code
-          > 填入提示词。
-        </p>
+        <div class="sec-title">
+          采集工具
+          <span class="help" tabindex="0" role="button" aria-label="说明"
+            >?<span class="tip"
+              >勾选你在用的本地编程工具，生成日报时会自动读取这些工具当天的对话。采集到的对话会作为占位符
+              <code class="var">{TPL_CONV}</code> 填入提示词。</span
+            ></span
+          >
+        </div>
         {#each COLLECT_TOOLS as t (t.id)}
           <label class="fld fld-check">
             <input type="checkbox" bind:checked={toolEnabled[t.id]} />
@@ -404,10 +431,14 @@
           </div>
         {/each}
 
-        <div class="sub-title">路径过滤</div>
-        <p class="sec-hint">
-          只想采集（或想跳过）某些项目时，在这里按项目目录过滤。子目录会一并纳入；「排除」优先于「仅采集」，被排除的目录绝不会进入日报。两项都可以留空，表示不过滤。
-        </p>
+        <div class="sub-title">
+          路径过滤
+          <span class="help" tabindex="0" role="button" aria-label="说明"
+            >?<span class="tip"
+              >只想采集（或想跳过）某些项目时，在这里按项目目录过滤。子目录会一并纳入；「排除」优先于「仅采集」，被排除的目录绝不会进入日报。两项都可以留空，表示不过滤。</span
+            ></span
+          >
+        </div>
 
         <div class="path-group">
           <div class="path-group-label">排除路径（黑名单）</div>
@@ -494,29 +525,106 @@
     font-weight: 600;
   }
   .sec {
+    position: relative;
     padding: 1.3rem 1.4rem;
     margin-bottom: 1rem;
     gap: 0;
+    overflow: visible; /* 覆盖 .panel 的 overflow:hidden，让问号 tooltip 能越过卡片边界 */
+  }
+  .sec:hover {
+    z-index: 20; /* 悬浮的卡片连同它的 tooltip 浮到相邻卡片之上 */
   }
   .sec-title-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    margin-bottom: 0.6rem;
   }
   .sec-actions-row {
     display: flex;
     gap: 0.4rem;
   }
   .sec-title {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
     font-size: 0.98rem;
     font-weight: 650;
-    margin-bottom: 0.3rem;
+    margin-bottom: 0.6rem;
   }
-  .sec-hint {
-    color: var(--ink-faint);
-    font-size: 0.78rem;
-    margin: 0 0 1rem;
+  .sec-title-row .sec-title {
+    margin-bottom: 0; /* 行内标题的下方间距由 .sec-title-row 负责 */
+  }
+  .sub-title {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.9rem;
+    font-weight: 650;
+    margin: 1.1rem 0 0.4rem;
+    color: var(--ink);
+  }
+  .sec-title-row .sub-title {
+    margin: 0;
+  }
+  /* 圆形问号 + 悬浮提示 */
+  .help {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 15px;
+    height: 15px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    border: 1px solid var(--ink-faint);
+    color: var(--ink-soft);
+    font-family: var(--mono);
+    font-size: 0.6rem;
+    font-weight: 700;
+    line-height: 1;
+    cursor: help;
+    transition:
+      color 0.15s,
+      border-color 0.15s;
+  }
+  .help:hover,
+  .help:focus-visible {
+    border-color: var(--accent);
+    color: var(--accent);
+    outline: none;
+  }
+  .tip {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 0;
+    z-index: 30;
+    width: max-content;
+    max-width: 300px;
+    padding: 0.7rem 0.85rem;
+    background: var(--paper-card);
+    color: var(--ink);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    font-size: 0.76rem;
+    font-weight: 400;
     line-height: 1.6;
+    letter-spacing: normal;
+    white-space: normal;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.1);
+    visibility: hidden;
+    opacity: 0;
+    transform: translateY(-4px);
+    transition:
+      opacity 0.15s,
+      transform 0.15s;
+    pointer-events: none;
+  }
+  .help:hover .tip,
+  .help:focus-visible .tip {
+    visibility: visible;
+    opacity: 1;
+    transform: translateY(0);
   }
   .fld {
     display: block;
@@ -587,12 +695,6 @@
   }
   .save-btn {
     padding: 0.65rem 1.6rem;
-  }
-  .sub-title {
-    font-size: 0.9rem;
-    font-weight: 650;
-    margin: 1.1rem 0 0.2rem;
-    color: var(--ink);
   }
   .path-group {
     margin-top: 0.6rem;
