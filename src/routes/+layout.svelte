@@ -1,9 +1,12 @@
 <script lang="ts">
   import '../app.css';
   import { onMount } from 'svelte';
+  import { get } from 'svelte/store';
   import { page } from '$app/stores';
   import { getCurrentWindow } from '@tauri-apps/api/window';
-  import { initConfig, toast } from '$lib/store';
+  import { initConfig, config, toast } from '$lib/store';
+  import { checkForUpdate, openUpdateDialog } from '$lib/updater';
+  import UpdateDialog from '$lib/components/UpdateDialog.svelte';
 
   let { children } = $props();
   const appWindow = getCurrentWindow();
@@ -15,8 +18,18 @@
     { href: '/history', label: '历史' },
   ];
 
-  onMount(() => {
-    initConfig();
+  onMount(async () => {
+    await initConfig();
+    // 配置加载完成后,若开启自动检查,静默检查一次(失败/无更新均不打扰)。
+    if (get(config).autoCheckUpdate) {
+      try {
+        const info = await checkForUpdate();
+        if (info.available && info.version)
+          openUpdateDialog({ version: info.version, body: info.body });
+      } catch {
+        /* 启动自动检查失败:静默 */
+      }
+    }
   });
 </script>
 
@@ -89,6 +102,8 @@
       {$toast.msg}
     </div>
   {/if}
+
+  <UpdateDialog />
 </div>
 
 <style>

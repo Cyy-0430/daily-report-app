@@ -69,6 +69,10 @@ jobs:
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # updater 签名:使能 createUpdaterArtifacts 后,据此对安装包签名并生成 latest.json。
+          # 私钥与密码由仓库 owner 在 GitHub Secrets 配置(见 prd「用户侧前置依赖」)。
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: '日报生成 v__VERSION__'

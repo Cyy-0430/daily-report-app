@@ -1,5 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { getVersion } from '@tauri-apps/api/app';
+  import { openUrl } from '@tauri-apps/plugin-opener';
   import {
     loadConfig,
     saveConfig,
@@ -9,6 +11,8 @@
     type ApiConfig,
   } from '$lib/bindings';
   import { config, notify } from '$lib/store';
+  import { APP_NAME, APP_NAME_EN, APP_AUTHOR, GITHUB_URL } from '$lib/app-meta';
+  import { checkForUpdate, openUpdateDialog } from '$lib/updater';
   import {
     DEFAULT_PROMPT_TEMPLATE,
     DEFAULT_WEEKLY_MAP_TEMPLATE,
@@ -21,11 +25,12 @@
   } from '$lib/template';
   import { open } from '@tauri-apps/plugin-dialog';
 
-  type SettingsTab = 'api' | 'prompt' | 'collect';
+  type SettingsTab = 'api' | 'prompt' | 'collect' | 'about';
   const SETTINGS_TABS: { id: SettingsTab; label: string }[] = [
     { id: 'api', label: 'API' },
     { id: 'prompt', label: '提示词' },
     { id: 'collect', label: '采集' },
+    { id: 'about', label: '关于' },
   ];
 
   let activeTab = $state<SettingsTab>('api');
@@ -52,9 +57,15 @@
   let showKey = $state(false);
   let testing = $state(false);
   let saving = $state(false);
+  // 关于 tab:运行时版本号、自动检查更新开关、手动检查中状态。
+  let appVersion = $state('');
+  let autoCheckUpdate = $state(true);
+  let checking = $state(false);
 
   onMount(async () => {
     const c = await loadConfig();
+    autoCheckUpdate = c.autoCheckUpdate ?? true;
+    getVersion().then((v) => (appVersion = v));
     api = { ...c.apiConfig };
     template = c.promptTemplate || DEFAULT_PROMPT_TEMPLATE;
     customDefault = c.customDefaultTemplate || '';
@@ -135,9 +146,41 @@
     }
   }
 
+  async function saveAbout() {
+    saving = true;
+    try {
+      const cur = await loadConfig();
+      const merged = { ...cur, autoCheckUpdate };
+      await saveConfig(merged);
+      config.set(merged);
+      notify('ok', '已保存关于设置');
+    } catch (e) {
+      notify('err', String(e));
+    } finally {
+      saving = false;
+    }
+  }
+
+  async function checkUpdateManual() {
+    checking = true;
+    try {
+      const info = await checkForUpdate();
+      if (info.available && info.version) {
+        openUpdateDialog({ version: info.version, body: info.body });
+      } else {
+        notify('ok', '已是最新版本');
+      }
+    } catch (e) {
+      notify('err', `检查更新失败:${String(e)}`);
+    } finally {
+      checking = false;
+    }
+  }
+
   async function saveActive() {
     if (activeTab === 'api') return saveApi();
     if (activeTab === 'prompt') return savePrompt();
+    if (activeTab === 'about') return saveAbout();
     return saveCollect();
   }
 
@@ -396,7 +439,7 @@
         </div>
         <textarea bind:value={weeklyReduce} class="field code tmpl"></textarea>
       </section>
-    {:else}
+    {:else if activeTab === 'collect'}
       <!-- 采集工具 -->
       <section class="panel sec">
         <div class="sec-title">
@@ -469,6 +512,72 @@
           {/each}
           <button class="btn btn-ghost btn-sm path-add" onclick={addIncludePath}>
             + 添加仅采集路径
+          </button>
+        </div>
+      </section>
+    {:else if activeTab === 'about'}
+      <!-- 应用信息 -->
+      <section class="panel sec about-card">
+        <div class="about-head">
+          <span class="about-mark" aria-hidden="true"></span>
+          <div class="about-title">
+            <span class="about-name">{APP_NAME}</span>
+            <span class="about-name-en">{APP_NAME_EN}</span>
+          </div>
+        </div>
+        <dl class="about-meta">
+          <div class="meta-row">
+            <dt>版本</dt>
+            <dd class="mono">v{appVersion || '—'}</dd>
+          </div>
+          <div class="meta-row">
+            <dt>作者</dt>
+            <dd>{APP_AUTHOR}</dd>
+          </div>
+          <div class="meta-row">
+            <dt>仓库</dt>
+            <dd>
+              <button class="link-btn" onclick={() => openUrl(GITHUB_URL)}>
+                {GITHUB_URL} ↗
+              </button>
+            </dd>
+          </div>
+        </dl>
+        <div class="star-line">
+          如果这个工具对你有帮助，欢迎在 GitHub
+          <button class="star-inline" onclick={() => openUrl(GITHUB_URL)}>点个 ⭐ Star</button>
+        </div>
+      </section>
+
+      <!-- 更新 -->
+      <section class="panel sec">
+        <div class="sec-title">
+          更新
+          <span class="help" tabindex="0" role="button" aria-label="说明"
+            >?<span class="tip"
+              >开启后每次打开应用会静默检查一次新版本，有更新时弹出对话框。也可随时点「立即检查更新」手动检查。更新包经签名校验，下载安装后自动重启。</span
+            ></span
+          >
+        </div>
+        <label class="toggle-row">
+          <span class="toggle-text">
+            <span class="toggle-label">启动时自动检查更新</span>
+            <span class="toggle-sub">每次打开应用时静默检查新版本（默认开启）</span>
+          </span>
+          <button
+            class="switch"
+            class:on={autoCheckUpdate}
+            role="switch"
+            aria-checked={autoCheckUpdate}
+            aria-label="启动时自动检查更新"
+            onclick={() => (autoCheckUpdate = !autoCheckUpdate)}
+          >
+            <span class="knob"></span>
+          </button>
+        </label>
+        <div class="sec-actions">
+          <button class="btn btn-ghost" onclick={checkUpdateManual} disabled={checking}>
+            {checking ? '检查中…' : '立即检查更新'}
           </button>
         </div>
       </section>
@@ -720,5 +829,158 @@
   }
   .path-add {
     margin-top: 0.15rem;
+  }
+  /* ---- 关于 tab ---- */
+  .about-card {
+    align-items: stretch;
+  }
+  .about-head {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    margin-bottom: 1.1rem;
+  }
+  .about-mark {
+    width: 34px;
+    height: 34px;
+    flex-shrink: 0;
+    background: var(--accent);
+    border-radius: 8px;
+    transform: rotate(45deg);
+    box-shadow: 0 0 0 4px rgba(156, 58, 38, 0.12);
+  }
+  .about-title {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+  }
+  .about-name {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--ink);
+  }
+  .about-name-en {
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    letter-spacing: 0.12em;
+    color: var(--ink-faint);
+  }
+  .about-meta {
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+  }
+  .meta-row {
+    display: flex;
+    align-items: baseline;
+    gap: 0.8rem;
+    font-size: 0.84rem;
+  }
+  .meta-row dt {
+    width: 3rem;
+    flex-shrink: 0;
+    font-size: 0.76rem;
+    color: var(--ink-faint);
+    letter-spacing: 0.04em;
+  }
+  .meta-row dd {
+    margin: 0;
+    color: var(--ink-soft);
+    word-break: break-all;
+  }
+  .meta-row .mono {
+    font-family: var(--mono);
+    color: var(--ink);
+  }
+  .link-btn {
+    appearance: none;
+    background: none;
+    border: none;
+    padding: 0;
+    font: inherit;
+    font-size: 0.82rem;
+    color: var(--accent);
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .link-btn:hover {
+    color: var(--accent-2);
+  }
+  .star-line {
+    margin-top: 1rem;
+    padding-top: 0.85rem;
+    border-top: 1px dashed var(--line);
+    font-size: 0.78rem;
+    color: var(--ink-faint);
+  }
+  .star-inline {
+    appearance: none;
+    background: none;
+    border: none;
+    padding: 0;
+    font: inherit;
+    color: var(--accent);
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .star-inline:hover {
+    color: var(--accent-2);
+  }
+  /* 开关 */
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.4rem 0;
+    cursor: pointer;
+  }
+  .toggle-text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.18rem;
+  }
+  .toggle-label {
+    font-size: 0.86rem;
+    font-weight: 600;
+    color: var(--ink);
+  }
+  .toggle-sub {
+    font-size: 0.74rem;
+    color: var(--ink-faint);
+  }
+  .switch {
+    flex-shrink: 0;
+    width: 42px;
+    height: 24px;
+    border-radius: 999px;
+    border: 1px solid var(--line-strong);
+    background: var(--paper);
+    position: relative;
+    cursor: pointer;
+    transition:
+      background 0.18s,
+      border-color 0.18s;
+  }
+  .switch.on {
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+  .knob {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--paper-card);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    transition: transform 0.18s ease;
+  }
+  .switch.on .knob {
+    transform: translateX(18px);
   }
 </style>

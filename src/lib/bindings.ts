@@ -41,6 +41,8 @@ export interface AppConfig {
   weeklyDefaultReduceTemplate: string;
   exportDir: string;
   collectConfig: CollectConfig;
+  /** 启动时是否自动检查更新(默认 true)。 */
+  autoCheckUpdate: boolean;
 }
 
 export type StreamChunk =
@@ -140,6 +142,7 @@ export function emptyConfig(): AppConfig {
       excludePaths: [],
       toolPaths: {},
     },
+    autoCheckUpdate: true,
   };
 }
 

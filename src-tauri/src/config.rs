@@ -90,6 +90,14 @@ pub struct AppConfig {
     pub export_dir: String,
     #[serde(default)]
     pub collect_config: CollectConfig,
+    /// 是否在启动时自动检查更新;默认 true。旧配置缺失该字段时回填 true。
+    #[serde(default = "default_true")]
+    pub auto_check_update: bool,
+}
+
+/// `#[serde(default)]` 回退值:布尔默认 true(用于 auto_check_update)。
+fn default_true() -> bool {
+    true
 }
 
 #[tauri::command]
@@ -104,4 +112,36 @@ pub fn save_config(app: AppHandle, config: AppConfig) -> Result<(), String> {
     let state = app.state::<DbState>();
     let conn = state.0.lock().map_err(|e| e.to_string())?;
     set_config(&conn, &config)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn missing_auto_check_update_defaults_true() {
+        // 旧配置 JSON 缺 autoCheckUpdate 字段时,反序列化必须回退为 true(无损升级)。
+        let legacy = r#"{
+            "apiConfig": { "baseUrl": "", "apiKey": "", "model": "" },
+            "collectConfig": {
+                "enabledTools": ["claude-code"],
+                "includePaths": [],
+                "excludePaths": [],
+                "toolPaths": {}
+            }
+        }"#;
+        let cfg: AppConfig = serde_json::from_str(legacy).expect("parse legacy config");
+        assert!(cfg.auto_check_update, "auto_check_update 应默认 true");
+    }
+
+    #[test]
+    fn auto_check_update_round_trips() {
+        let mut cfg = AppConfig::default();
+        cfg.auto_check_update = false;
+        let json = serde_json::to_string(&cfg).unwrap();
+        let back: AppConfig = serde_json::from_str(&json).unwrap();
+        assert!(!back.auto_check_update);
+        // 序列化键须为 camelCase,与前端对齐。
+        assert!(json.contains("\"autoCheckUpdate\":false"));
+    }
 }

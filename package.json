@@ -1,6 +1,6 @@
 {
   "name": "daily-report-app",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "日报生成 App (Tauri2)",
   "type": "module",
   "scripts": {
@@ -21,6 +21,8 @@
     "@tauri-apps/plugin-clipboard-manager": "^2",
     "@tauri-apps/plugin-dialog": "^2",
     "@tauri-apps/plugin-opener": "^2",
+    "@tauri-apps/plugin-process": "^2.3.1",
+    "@tauri-apps/plugin-updater": "^2.10.1",
     "dompurify": "^3",
     "marked": "^14"
   },

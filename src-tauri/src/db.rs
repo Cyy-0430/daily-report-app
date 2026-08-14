@@ -346,6 +346,7 @@ pub fn migrate_from_store(
             weekly_default_reduce_template: leg.weekly_default_reduce_template,
             export_dir: leg.export_dir,
             collect_config: leg.collect_config,
+            auto_check_update: true,
         };
         upsert_config(&tx, &cfg)?;
     }
@@ -427,6 +428,7 @@ mod tests {
                 exclude_paths: vec!["D:\\secret".into()],
                 tool_paths: Default::default(),
             },
+            auto_check_update: true,
         }
     }
 
