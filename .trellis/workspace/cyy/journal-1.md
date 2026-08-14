@@ -93,3 +93,25 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 4: 设置页新增关于tab与自动更新检查
+
+**Date**: 2026-08-14
+**Task**: 设置页新增关于tab与自动更新检查
+**Branch**: `main`
+
+### Summary
+
+设置页第4个tab「关于」+ autoCheckUpdate 配置字段(默认true) + tauri-plugin-updater/process 集成(启动静默检查/手动检查/更新对话框带进度条与Star引导) + 签名密钥生成与GitHub Secrets配置 + v0.5.1 发布(全平台签名安装包+latest.json)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `74fc96a` | (see git log) |
+| `6c9a2d4` | (see git log) |
+
+### Status
+
+[OK] **Completed**
