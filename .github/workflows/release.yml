@@ -52,6 +52,15 @@ jobs:
           echo "=== tauri.conf.json version ==="
           jq '.version' src-tauri/tauri.conf.json
 
+      - name: Load release notes (Release 页与 latest.json 的单一来源)
+        shell: bash
+        run: |
+          {
+            echo "RELEASE_BODY<<RELEASE_NOTES_EOF"
+            cat .github/release-notes.md
+            echo "RELEASE_NOTES_EOF"
+          } >> "$GITHUB_ENV"
+
       - name: Cache Rust build
         uses: Swatinem/rust-cache@v2
         with:
@@ -76,14 +85,9 @@ jobs:
         with:
           tagName: ${{ github.ref_name }}
           releaseName: '日报生成 v__VERSION__'
-          releaseBody: |
-            ## 安装
-
-            在下方 **Assets** 中选择对应平台的安装包下载：
-
-            - **Windows**: `*.msi` 或 `*-setup.exe`
-            - **macOS**: `*.dmg`（Apple Silicon 选 aarch64，Intel 选 x64）
-            - **Linux**: `*.deb` / `*.AppImage`
+          # 内容来自 .github/release-notes.md(单一来源):tauri-action 会把它同时写进
+          # Release 页与 latest.json 的 notes(应用内更新弹窗显示的内容)。
+          releaseBody: ${{ env.RELEASE_BODY }}
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}

@@ -26,6 +26,7 @@ const KEY_WEEKLY_DEFAULT_MAP_TEMPLATE: &str = "weekly_default_map_template";
 const KEY_WEEKLY_DEFAULT_REDUCE_TEMPLATE: &str = "weekly_default_reduce_template";
 const KEY_EXPORT_DIR: &str = "export_dir";
 const KEY_COLLECT_CONFIG: &str = "collect_config";
+const KEY_AUTO_CHECK_UPDATE: &str = "auto_check_update";
 
 /// `meta` 表键 + 哨兵值。`META_MIGRATED_FROM_STORE` 由 lib.rs 迁移触发点共用,故 pub(crate)。
 const META_SCHEMA_VERSION: &str = "schema_version";
@@ -132,6 +133,9 @@ pub fn get_config(conn: &Connection) -> Result<AppConfig, String> {
     if let Some(v) = get_kv(conn, KEY_COLLECT_CONFIG)? {
         cfg.collect_config = serde_json::from_str(&v).map_err(|e| e.to_string())?;
     }
+    if let Some(v) = get_kv(conn, KEY_AUTO_CHECK_UPDATE)? {
+        cfg.auto_check_update = serde_json::from_str(&v).map_err(|e| e.to_string())?;
+    }
     Ok(cfg)
 }
 
@@ -183,6 +187,10 @@ fn config_pairs(cfg: &AppConfig) -> Result<Vec<(&'static str, String)>, String> 
         (
             KEY_COLLECT_CONFIG,
             serde_json::to_string(&cfg.collect_config).map_err(|e| e.to_string())?,
+        ),
+        (
+            KEY_AUTO_CHECK_UPDATE,
+            serde_json::to_string(&cfg.auto_check_update).map_err(|e| e.to_string())?,
         ),
     ])
 }
@@ -482,6 +490,17 @@ mod tests {
             got.collect_config.exclude_paths,
             cfg.collect_config.exclude_paths
         );
+        assert_eq!(got.auto_check_update, cfg.auto_check_update);
+    }
+
+    #[test]
+    fn config_auto_check_update_persists() {
+        // 回归:该字段曾漏出 config_pairs/get_config,关掉保存后重启又回到默认 true。
+        let conn = mem_db();
+        let mut cfg = sample_config();
+        cfg.auto_check_update = false;
+        set_config(&conn, &cfg).unwrap();
+        assert!(!get_config(&conn).unwrap().auto_check_update);
     }
 
     #[test]

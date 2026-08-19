@@ -19,6 +19,8 @@
   ];
 
   onMount(async () => {
+    // 应用已挂载,移除 app.html 的内联启动闪屏(消除白屏用,见 app.html 注释)。
+    document.getElementById('app-splash')?.remove();
     await initConfig();
     // 配置加载完成后,若开启自动检查,静默检查一次(失败/无更新均不打扰)。
     if (get(config).autoCheckUpdate) {

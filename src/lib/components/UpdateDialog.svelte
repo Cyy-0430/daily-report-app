@@ -2,6 +2,7 @@
   import { openUrl } from '@tauri-apps/plugin-opener';
   import { GITHUB_URL } from '$lib/app-meta';
   import { notify } from '$lib/store';
+  import { renderMarkdown } from '$lib/markdown';
   import {
     updateDialog,
     closeUpdateDialog,
@@ -42,7 +43,9 @@
       </div>
 
       {#if $updateDialog.body}
-        <div class="notes">{$updateDialog.body}</div>
+        <!-- md-body:全局 markdown 样式(app.css);.notes 叠加弹窗内的留白/高度约束。
+             body 来自 latest.json notes,经 renderMarkdown 的 DOMPurify 清理后注入。 -->
+        <div class="notes md-body">{@html renderMarkdown($updateDialog.body)}</div>
       {/if}
 
       {#if busy}
@@ -147,10 +150,14 @@
     font-size: 0.82rem;
     line-height: 1.7;
     color: var(--ink-soft);
-    white-space: pre-wrap;
     word-break: break-word;
     max-height: 220px;
     overflow: auto;
+  }
+  /* markdown 首元素(如「## 新增」)不带上边距,贴齐弹窗头部。
+     内容经 {@html} 注入,子元素须 :global 才不被 scoped 剪枝。 */
+  .notes > :global(:first-child) {
+    margin-top: 0;
   }
   .progress-wrap {
     padding: 0 1.3rem;
