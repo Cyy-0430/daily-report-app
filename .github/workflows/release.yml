@@ -57,7 +57,8 @@ jobs:
         run: |
           {
             echo "RELEASE_BODY<<RELEASE_NOTES_EOF"
-            cat .github/release-notes.md
+            # 剥掉文件顶部的 <!-- --> 使用说明注释,只保留正文
+            sed '/^<!--/,/^-->/d' .github/release-notes.md
             echo "RELEASE_NOTES_EOF"
           } >> "$GITHUB_ENV"
 
