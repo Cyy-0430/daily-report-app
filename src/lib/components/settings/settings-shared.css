@@ -1,0 +1,91 @@
+/*
+ * 设置页跨 tab 共享样式(由 settings/+page.svelte 导入一次,全局生效)。
+ * Svelte 组件 <style> 是 scoped 的,跨组件共享类必须走全局 CSS;
+ * 类名仅设置页使用,勿在其它路由复用。tab 独有的类 scoped 在各组件内。
+ */
+
+/* 卡片 section:.panel 基础上放开溢出,让问号 tooltip 能越过卡片边界 */
+.sec {
+  position: relative;
+  padding: 1.3rem 1.4rem;
+  margin-bottom: 1rem;
+  gap: 0;
+  overflow: visible; /* 覆盖 .panel 的 overflow:hidden，让问号 tooltip 能越过卡片边界 */
+}
+.sec:hover {
+  z-index: 20; /* 悬浮的卡片连同它的 tooltip 浮到相邻卡片之上 */
+}
+
+.sec-title {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.98rem;
+  font-weight: 650;
+  margin-bottom: 0.6rem;
+}
+.sec-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.6rem;
+}
+.sec-title-row .sec-title {
+  margin-bottom: 0; /* 行内标题的下方间距由 .sec-title-row 负责 */
+}
+.sec-actions-row {
+  display: flex;
+  gap: 0.4rem;
+}
+/* 底部动作区(API 测试连接 / 关于 检查更新) */
+.sec-actions {
+  margin-top: 0.4rem;
+}
+.sub-title {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+  font-weight: 650;
+  margin: 1.1rem 0 0.4rem;
+  color: var(--ink);
+}
+.sec-title-row .sub-title {
+  margin: 0;
+}
+
+.fld {
+  display: block;
+  margin-bottom: 0.9rem;
+}
+.fld-check {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.82rem;
+  color: var(--ink-soft);
+}
+.fld-check input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+}
+.fld > span {
+  display: block;
+  font-size: 0.76rem;
+  color: var(--ink-soft);
+  margin-bottom: 0.35rem;
+  letter-spacing: 0.02em;
+}
+
+/* 提示正文里的模板占位符(如 {{date}})。
+ * HelpTip 的 children snippet 按父组件作用域编译,必须全局,不能 scoped 进 HelpTip。 */
+.var {
+  font-family: var(--mono);
+  font-size: 0.76rem;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  padding: 0.05rem 0.35rem;
+  border-radius: 4px;
+  color: var(--accent);
+}

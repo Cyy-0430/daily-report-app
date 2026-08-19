@@ -1,0 +1,4 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Svelte 组件规范位(当前为模板;实际惯例以 CLAUDE.md 与 src/lib/components/ReportPanel.svelte 的 / 写法为准)"}
+{"file": ".trellis/spec/guides/index.md", "reason": "Pre-modification rule:改任何常量/样式前先 grep;本次大量迁移类名与默认模板常量"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "HelpTip 抽取即消除重复模式,迁移前先搜同类实现"}

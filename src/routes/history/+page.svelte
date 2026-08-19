@@ -87,6 +87,8 @@
   .page-scroll {
     height: 100%;
     overflow: auto;
+    /* 滚动条槽常驻:内容增减不再引起滚动条出现/消失导致的居中列左右跳动(与设置页一致) */
+    scrollbar-gutter: stable;
   }
   .page-inner {
     max-width: 760px;
