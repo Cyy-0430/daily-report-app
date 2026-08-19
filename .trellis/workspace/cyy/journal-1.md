@@ -115,3 +115,24 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 5: 设置页组件拆分 + 方向性横滑 + 偏移修复
+
+**Date**: 2026-08-19
+**Task**: 设置页组件拆分 + 方向性横滑 + 偏移修复
+**Branch**: `main`
+
+### Summary
+
+设置页 987 行拆为 247 行薄壳 + settings/ 六组件与 settings-shared.css;持久化字段留页面 bind: 下传(切 tab 不丢编辑);tab 方向性横滑(220ms,grid 同格叠加);scrollbar-gutter 修复设置/历史页切页左右偏移;整周汇总标题行间距旧问题修复;组件约定沉淀至 frontend/component-guidelines.md;版本 bump 0.5.2
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `3e5974b` | (see git log) |
+
+### Status
+
+[OK] **Completed**
