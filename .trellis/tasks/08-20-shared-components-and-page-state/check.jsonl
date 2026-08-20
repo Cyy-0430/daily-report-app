@@ -1,0 +1,1 @@
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "检查组件是否符合 runes/状态归属/snippet 作用域/共享 CSS 类名作用域约定,以及 a11y 0 警告要求"}

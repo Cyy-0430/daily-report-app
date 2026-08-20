@@ -54,6 +54,12 @@
   margin: 0;
 }
 
+/* 模板 textarea 与下一个标题行(整周汇总)之间补呼吸间距,对齐独立 .sub-title 的 1.1rem 上间距节奏。
+ * 必须全局:相邻关系跨两个 TemplateEditor 实例,scoped 进组件会被编译器判 unused 剪除。 */
+.tmpl + .sec-title-row {
+  margin-top: 1.1rem;
+}
+
 .fld {
   display: block;
   margin-bottom: 0.9rem;

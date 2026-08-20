@@ -1,0 +1,52 @@
+/*
+ * 报告编辑器页(日报 / 周报)跨页共享样式(两页各导入一次,Vite 去重,全局生效)。
+ * Svelte 组件 <style> 是 scoped 的,跨页/跨组件共享类必须走全局 CSS;
+ * 类名仅报告编辑器页面族使用,勿在其它路由复用。
+ * 注意:InputPanel 的 head/extra snippet 内容按页面作用域编译,snippet 里用到的类
+ * (.collect-bar/.collect-src/.collect-date/.collect-meta/.meta)必须在这里全局生效,
+ * 不能 scoped 进 InputPanel。各页独有类(.collect-preview、.range-pick、.day-list、
+ * .progress-* 等)scoped 在各页 <style>;head 里把日期控件推到右侧的 margin-left:auto
+ * 也由各页 scoped(.collect-date / .range-pick)承担。
+ */
+
+.editor-grid {
+  height: 100%;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  padding: 1rem;
+  align-items: stretch;
+}
+
+.collect-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1.15rem;
+  border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+.collect-src {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--ink-faint);
+  margin-right: auto;
+}
+.collect-date {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 0.2rem 0.4rem;
+  background: var(--paper);
+}
+.collect-meta {
+  font-size: 0.72rem;
+}
+/* 采集条/字数等元信息(InputPanel 的 panel-foot 与页面 snippet 里均会用到,故全局) */
+.meta {
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  color: var(--ink-faint);
+}

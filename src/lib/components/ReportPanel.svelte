@@ -5,20 +5,22 @@
   import { save } from '@tauri-apps/plugin-dialog';
   import { writeText } from '@tauri-apps/plugin-clipboard-manager';
 
-  // output 双向绑定(父组件流式写入);busy/label/exportName 只读。
+  // output/mode 双向绑定(父组件流式写入 output;预览/编辑模式随页面状态保留);
+  // busy/label/exportName 只读。
   let {
     output = $bindable(''),
+    mode = $bindable('preview'),
     busy = false,
     label = '日报',
     exportName = 'report',
   }: {
     output?: string;
+    mode?: 'edit' | 'preview';
     busy?: boolean;
     label?: string;
     exportName?: string;
   } = $props();
 
-  let mode = $state<'edit' | 'preview'>('preview');
   let html = $derived(renderMarkdown(output));
 
   async function onCopy() {

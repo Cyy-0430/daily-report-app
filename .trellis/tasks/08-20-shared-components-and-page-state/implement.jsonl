@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Svelte 5 runes 组件规范:状态归属(页面持久化/组件瞬时)、$bindable、回调 props、snippet 编译作用域、共享 CSS 约定 —— 本任务的 InputPanel/TemplateEditor/状态模块都要遵循"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "前端 spec 索引,确认可用的指南清单与语言约定"}

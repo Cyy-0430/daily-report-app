@@ -17,7 +17,7 @@ This directory contains guidelines for frontend development. Fill in each file w
 | [Directory Structure](./directory-structure.md) | Module organization and file layout | To fill |
 | [Component Guidelines](./component-guidelines.md) | Component patterns, props, composition | Filled (settings 组件拆分任务沉淀:状态归属/props/样式/过渡模式) |
 | [Hook Guidelines](./hook-guidelines.md) | Custom hooks, data fetching patterns | To fill |
-| [State Management](./state-management.md) | Local state, global state, server state | To fill |
+| [State Management](./state-management.md) | Local state, global state, server state | Filled (报告页状态保留任务沉淀:模块级 `$state` 跨路由约定、状态分类表) |
 | [Quality Guidelines](./quality-guidelines.md) | Code standards, forbidden patterns | To fill |
 | [Type Safety](./type-safety.md) | Type patterns, validation | To fill |
 

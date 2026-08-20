@@ -9,8 +9,8 @@
 - 组件一律 **Svelte 5 runes**(`$state` / `$derived` / `$props` / `$bindable`),不用 svelte stores 做局部状态;全局共享状态才进 `src/lib/store.ts`(stores)。
 - 两类组件:
   - **功能面板组件**(`src/lib/components/**`):自包含 UI + 局部交互,通过 props/bind 与父级通信;
-  - **路由页面**(`src/routes/**/+page.svelte`):薄壳 —— 持有持久化字段 `$state`、数据加载(onMount)、保存编排;不写具体 UI 标记。
-- 范例:设置页 `src/routes/settings/+page.svelte`(247 行薄壳)+ `src/lib/components/settings/` 六个组件(SettingsTabs / HelpTip / ApiTab / PromptTab / CollectTab / AboutTab)+ `settings-shared.css`。
+  - **路由页面**(`src/routes/**/+page.svelte`):薄壳 —— 编排(onMount 数据加载、IPC 调用、保存)、注入共享 CSS;不写具体 UI 标记。跨路由保留的工作状态放模块级 `$state`(见 state-management.md),不再由页面 `$state` 持有。
+- 范例:设置页 `src/routes/settings/+page.svelte`(薄壳)+ `src/lib/components/settings/`(SettingsTabs / HelpTip / ApiTab / PromptTab / CollectTab / AboutTab / TemplateEditor)+ `settings-shared.css`;报告页 `src/routes/+page.svelte` / `src/routes/weekly/+page.svelte`(薄壳)+ `src/lib/components/report/`(InputPanel + report-shared.css)+ 共享的 ReportPanel。
 
 ---
 
@@ -51,7 +51,7 @@ let showKey = $state(false);
   - 设置页:`src/lib/components/settings/settings-shared.css`(`.sec` / `.sec-title` / `.sec-title-row` / `.sub-title` / `.fld` / `.var` 等);
   - **类名按约定仅限该功能使用,勿在其它路由复用**(它们是全局生效的)。
 - 全局基础类(`.panel` / `.field` / `.btn` / `.page-foot` 等)在 `src/app.css`,组件直接用、不覆盖。
-- **snippet(children)内容按父组件作用域编译**:子组件(如 HelpTip)内渲染的 children 里用到的类(如 `<code class="var">`)必须留在全局 CSS,scoped 进子组件会失效。
+- **snippet(children)内容按父组件作用域编译**:子组件(如 HelpTip)内渲染的 children 里用到的类(如 `<code class="var">`)必须留在全局 CSS,scoped 进子组件会失效。同理:页面经 snippet(`InputPanel` 的 `head`/`extra`)注入的标记,其中用到的类(如 `.collect-bar`/`.meta`)必须放共享 CSS(`report-shared.css`)或页面 scoped,不能 scoped 进接收 snippet 的组件。
 - tooltip 需要越出卡片边界:卡片容器 `overflow: visible` 覆盖 `.panel` 的 `overflow: hidden`,悬浮卡片 `:hover` 提 `z-index` 盖过相邻卡片(见 settings-shared.css 的 `.sec` / `.sec:hover`)。
 
 ---
@@ -65,6 +65,16 @@ let showKey = $state(false);
 ---
 
 ## Common Mistakes
+
+### Common Mistake: 跨组件实例的相邻选择器被 scoped CSS 剪除
+
+**Symptom**: 想让「上一个实例的 textarea」与「下一个实例的标题行」之间有间距,写在组件 scoped `<style>` 里(`.tmpl + .sec-title-row { margin-top: 1.1rem }`),svelte-check 报 `css_unused_selector`,规则被剪掉,间距真实丢失。
+
+**Cause**: scoped 选择器只对「同一实例内部的相邻关系」做静态分析;两个元素分属同一组件的两个实例(每日摘要的 textarea + 整周汇总的标题行,均为 TemplateEditor 渲染)时,编译器判定选择器永不命中并剪除 —— 即使运行时它们确实是相邻兄弟。
+
+**Fix**: 该类跨实例样式放功能域共享全局 CSS(本例 `settings-shared.css` 的 `.tmpl + .sec-title-row`),并确认加载链覆盖(该 CSS 由设置页路由导入、组件仅在该路由渲染)。
+
+**Prevention**: 给组件写相邻/兄弟选择器前先问:两个元素是否**必定来自同一实例**?不是 → 直接进共享 CSS。
 
 ### Common Mistake: 过渡参数在挂载时定型,`$effect` 追不上
 
