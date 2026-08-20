@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 5
-- **Last Active**: 2026-08-19
+- **Total Sessions**: 6
+- **Last Active**: 2026-08-20
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~138 | Active |
+| `journal-1.md` | ~159 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 6 | 2026-08-20 | 日报/周报公共组件抽取 + 页面状态跨路由保留 | `d70d8ea` | `main` |
 | 5 | 2026-08-19 | 设置页组件拆分 + 方向性横滑 + 偏移修复 | `3e5974b` | `main` |
 | 4 | 2026-08-14 | 设置页新增关于tab与自动更新检查 | `74fc96a`, `6c9a2d4` | `main` |
 | 3 | 2026-08-06 | 周报生成(区间采集 + map-reduce 摘要) | `9f72dc8` | `main` |

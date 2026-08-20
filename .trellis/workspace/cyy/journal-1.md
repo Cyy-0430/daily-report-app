@@ -136,3 +136,24 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 6: 日报/周报公共组件抽取 + 页面状态跨路由保留
+
+**Date**: 2026-08-20
+**Task**: 日报/周报公共组件抽取 + 页面状态跨路由保留
+**Branch**: `main`
+
+### Summary
+
+重构:两页状态迁移到模块级 (report-state.svelte.ts),切设置/历史再切回内容与流式输出保留;抽取 InputPanel/report-shared.css/TemplateEditor 消除日报周报页与设置页提示词模板的重复代码;spec 沉淀 state-management 与两个 CSS/snippet 坑。pnpm check 0/0,trellis-check 全项通过。版本 0.5.4。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `d70d8ea` | (see git log) |
+
+### Status
+
+[OK] **Completed**
