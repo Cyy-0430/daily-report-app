@@ -157,3 +157,24 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 7: 主题定制 tab:预设/自定义主题 + 组件库调色盘 + 预览
+
+**Date**: 2026-08-21
+**Task**: 主题定制 tab:预设/自定义主题 + 组件库调色盘 + 预览
+**Branch**: `main`
+
+### Summary
+
+设置页新增「主题」tab:CSS 变量级主题定制。预设「纸墨」(Editorial Paper) + 自定义主题(保存总是新建、自动命名、下拉内重命名/删除、选中即激活持久化);预览仅内存跨路由保持。调色盘经 QA 反馈由自研替换为 svelte-awesome-color-picker v4 包装层(对外契约不变、--cp-* 令牌映射、受控同步)。AppConfig 增量 themeConfig 字段(旧配置无损升级);CI Node 22→24;新增 theme.test.ts(12 断言)与 Rust 3 测试;README 重写突出自动采集亮点,GitHub 简介同步;spec 沉淀 frontend/theming.md 与组件包装层模式。全门禁绿:pnpm check 0 警告 / vitest 21 / cargo test 70 / build 成功。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `a8b86e8` | (see git log) |
+
+### Status
+
+[OK] **Completed**

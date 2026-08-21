@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 6
-- **Last Active**: 2026-08-20
+- **Total Sessions**: 7
+- **Last Active**: 2026-08-21
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~159 | Active |
+| `journal-1.md` | ~180 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 7 | 2026-08-21 | 主题定制 tab:预设/自定义主题 + 组件库调色盘 + 预览 | `a8b86e8` | `main` |
 | 6 | 2026-08-20 | 日报/周报公共组件抽取 + 页面状态跨路由保留 | `d70d8ea` | `main` |
 | 5 | 2026-08-19 | 设置页组件拆分 + 方向性横滑 + 偏移修复 | `3e5974b` | `main` |
 | 4 | 2026-08-14 | 设置页新增关于tab与自动更新检查 | `74fc96a`, `6c9a2d4` | `main` |
