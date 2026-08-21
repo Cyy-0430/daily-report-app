@@ -1,0 +1,29 @@
+{
+  "id": "settings-theme-share-proxy",
+  "name": "settings-theme-share-proxy",
+  "title": "设置增强:主题分享 + 网络代理",
+  "description": "",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "cyy",
+  "assignee": "cyy",
+  "createdAt": "2026-08-21",
+  "completedAt": "2026-08-21",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "08-21-theme-import-export",
+    "08-21-network-proxy"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}
