@@ -4,6 +4,9 @@ export interface ApiConfig {
   baseUrl: string;
   apiKey: string;
   model: string;
+  /** HTTP(S) 代理,如 "http://127.0.0.1:7890" 或裸 "127.0.0.1:7890"(自动补 http://);
+   *  空 = 直连。同时供前端检查更新使用(见 updater.ts)。 */
+  proxy: string;
 }
 
 export interface CollectConfig {
@@ -143,7 +146,7 @@ export const DEFAULT_TOOL_IDS: string[] = COLLECT_TOOLS.map((t) => t.id);
 
 export function emptyConfig(): AppConfig {
   return {
-    apiConfig: { baseUrl: '', apiKey: '', model: '' },
+    apiConfig: { baseUrl: '', apiKey: '', model: '', proxy: '' },
     promptTemplate: '',
     customDefaultTemplate: '',
     weeklyMapTemplate: '',

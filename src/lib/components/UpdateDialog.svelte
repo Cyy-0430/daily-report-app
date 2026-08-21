@@ -1,7 +1,8 @@
 <script lang="ts">
   import { openUrl } from '@tauri-apps/plugin-opener';
+  import { get } from 'svelte/store';
   import { GITHUB_URL } from '$lib/app-meta';
-  import { notify } from '$lib/store';
+  import { notify, config } from '$lib/store';
   import { renderMarkdown } from '$lib/markdown';
   import {
     updateDialog,
@@ -24,7 +25,11 @@
 
   async function install() {
     try {
-      await downloadAndInstallWithProgress((p) => (progress = p));
+      // 网络代理与检查更新共用 config.apiConfig.proxy:下载(重新 check 取句柄)同代理。
+      await downloadAndInstallWithProgress(
+        (p) => (progress = p),
+        get(config).apiConfig.proxy || undefined,
+      );
       // 成功后 relaunch() 已在封装内调用,此行通常不会执行。
     } catch (e) {
       notify('err', `更新失败:${String(e)}`);

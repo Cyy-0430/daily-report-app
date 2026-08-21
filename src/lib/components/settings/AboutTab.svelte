@@ -1,8 +1,9 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { get } from 'svelte/store';
   import { getVersion } from '@tauri-apps/api/app';
   import { openUrl } from '@tauri-apps/plugin-opener';
-  import { notify } from '$lib/store';
+  import { notify, config } from '$lib/store';
   import { APP_NAME, APP_NAME_EN, APP_AUTHOR, GITHUB_URL } from '$lib/app-meta';
   import { checkForUpdate, openUpdateDialog } from '$lib/updater';
   import HelpTip from './HelpTip.svelte';
@@ -21,7 +22,7 @@
   async function checkUpdateManual() {
     checking = true;
     try {
-      const info = await checkForUpdate();
+      const info = await checkForUpdate(get(config).apiConfig.proxy || undefined);
       if (info.available && info.version) {
         openUpdateDialog({ version: info.version, body: info.body });
       } else {

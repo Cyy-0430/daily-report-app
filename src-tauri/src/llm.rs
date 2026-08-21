@@ -3,7 +3,7 @@ use crate::config::{load_config, ApiConfig, HistoryItem};
 use crate::db::{insert_history, DbState};
 use chrono::{Datelike, NaiveDate};
 use futures_util::StreamExt;
-use reqwest::Client;
+use reqwest::{Client, Proxy};
 use serde::Serialize;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -178,6 +178,31 @@ fn build_endpoint(base_url: &str) -> String {
     }
 }
 
+/// 归一化代理串:trim;空/纯空白 → None(直连);无 scheme → 前缀 "http://"
+/// (reqwest 的 Url 不认裸 host:port);已带 scheme 原样保留(幂等)。
+/// 前端 updater.ts 的 normalizeProxy 与此规则镜像。
+fn normalize_proxy(proxy: &str) -> Option<String> {
+    let s = proxy.trim();
+    if s.is_empty() {
+        return None;
+    }
+    if s.contains("://") {
+        Some(s.to_string())
+    } else {
+        Some(format!("http://{s}"))
+    }
+}
+
+/// 统一 Client 构造(全模块唯一出口):超时 + 可选 HTTP(S) 代理。
+/// 代理 parse 失败返回可读错误而非静默直连——用户配代理通常有网络原因,直连会卡死或泄漏。
+fn build_client(timeout: Duration, proxy: &str) -> Result<Client, String> {
+    let mut b = Client::builder().timeout(timeout);
+    if let Some(url) = normalize_proxy(proxy) {
+        b = b.proxy(Proxy::all(&url).map_err(|e| format!("代理配置无效（{url}）：{e}"))?);
+    }
+    b.build().map_err(|e| e.to_string())
+}
+
 /// 流式调用的一次尝试:逐字通过 Channel 推送 Delta,返回完整文本。
 /// 首个 delta 推送后置 `emitted=true`(供重试编排判断「已部分输出」)。
 /// 不发 Done/Error——由调用方在成功/失败后发送,以便重试编排控制。
@@ -193,10 +218,7 @@ async fn stream_chat_once(
         "stream": true,
         "messages": [{ "role": "user", "content": prompt }]
     });
-    let client = Client::builder()
-        .timeout(Duration::from_secs(120))
-        .build()
-        .map_err(|e| e.to_string())?;
+    let client = build_client(Duration::from_secs(120), &api.proxy)?;
     let resp = client
         .post(&endpoint)
         .bearer_auth(&api.api_key)
@@ -247,10 +269,7 @@ async fn complete_once(api: &ApiConfig, prompt: &str) -> Result<String, String> 
         "stream": false,
         "messages": [{ "role": "user", "content": prompt }]
     });
-    let client = Client::builder()
-        .timeout(Duration::from_secs(120))
-        .build()
-        .map_err(|e| e.to_string())?;
+    let client = build_client(Duration::from_secs(120), &api.proxy)?;
     let resp = client
         .post(&endpoint)
         .bearer_auth(&api.api_key)
@@ -360,10 +379,7 @@ pub async fn test_connection(api: ApiConfig) -> Result<String, String> {
         return Err(MSG_API_INCOMPLETE_SHORT.into());
     }
     let endpoint = build_endpoint(&api.base_url);
-    let client = Client::builder()
-        .timeout(Duration::from_secs(30))
-        .build()
-        .map_err(|e| e.to_string())?;
+    let client = build_client(Duration::from_secs(30), &api.proxy)?;
     let body = serde_json::json!({
         "model": api.model,
         "messages": [{ "role": "user", "content": "ping" }],
@@ -584,4 +600,47 @@ pub async fn generate_weekly_report(
     let conn = state.0.lock().map_err(|e| e.to_string())?;
     insert_history(&conn, &item)?;
     Ok(item)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn normalize_proxy_empty_is_none() {
+        // 空/纯空白 = 未配置代理 → None(直连)。
+        assert_eq!(normalize_proxy(""), None);
+        assert_eq!(normalize_proxy("   "), None);
+        assert_eq!(normalize_proxy(" \r\n\t "), None);
+    }
+
+    #[test]
+    fn normalize_proxy_bare_host_port_gets_http_scheme() {
+        // 裸 host:port(reqwest 的 Url 不认)自动补 http:// 前缀,按 HTTP 代理处理。
+        assert_eq!(
+            normalize_proxy("127.0.0.1:7890").as_deref(),
+            Some("http://127.0.0.1:7890")
+        );
+    }
+
+    #[test]
+    fn normalize_proxy_with_scheme_unchanged() {
+        // 已带 scheme 原样返回(幂等:归一化后的值二次归一不再改写)。
+        assert_eq!(
+            normalize_proxy("http://127.0.0.1:7890").as_deref(),
+            Some("http://127.0.0.1:7890")
+        );
+        assert_eq!(
+            normalize_proxy("https://proxy.corp.local:8080").as_deref(),
+            Some("https://proxy.corp.local:8080")
+        );
+    }
+
+    #[test]
+    fn normalize_proxy_trims_surrounding_whitespace() {
+        assert_eq!(
+            normalize_proxy("  127.0.0.1:7890 \n").as_deref(),
+            Some("http://127.0.0.1:7890")
+        );
+    }
 }

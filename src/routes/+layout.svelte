@@ -26,9 +26,10 @@
     // 配置加载后应用激活主题(无自定义主题时 = 预设,首帧本就由 :root 保证,无闪变)。
     applyTheme(resolveColors(get(config).themeConfig));
     // 配置加载完成后,若开启自动检查,静默检查一次(失败/无更新均不打扰)。
+    // 网络代理(设置页 API tab)同时作用于检查更新;未配置时不传(直连)。
     if (get(config).autoCheckUpdate) {
       try {
-        const info = await checkForUpdate();
+        const info = await checkForUpdate(get(config).apiConfig.proxy || undefined);
         if (info.available && info.version)
           openUpdateDialog({ version: info.version, body: info.body });
       } catch {

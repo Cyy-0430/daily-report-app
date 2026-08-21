@@ -13,6 +13,11 @@ pub struct ApiConfig {
     pub api_key: String,
     #[serde(default)]
     pub model: String,
+    /// HTTP(S) 代理,如 "http://127.0.0.1:7890" 或裸 "127.0.0.1:7890"(归一化见
+    /// llm::normalize_proxy);空 = 直连。放 ApiConfig 而非顶层:test_connection 只收
+    /// api 对象(未保存表单值即可测试),llm 全链已持 &ApiConfig;前端检查更新亦读此字段。
+    #[serde(default)]
+    pub proxy: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -143,6 +148,28 @@ pub fn save_config(app: AppHandle, config: AppConfig) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn missing_api_proxy_defaults_empty() {
+        // 旧配置 JSON 的 apiConfig 缺 proxy 字段时,反序列化必须回退空串(= 直连,无损升级)。
+        let legacy = r#"{
+            "apiConfig": { "baseUrl": "https://api.example.com/v1", "apiKey": "sk-x", "model": "m" },
+            "autoCheckUpdate": true
+        }"#;
+        let cfg: AppConfig = serde_json::from_str(legacy).expect("parse legacy config");
+        assert_eq!(cfg.api_config.proxy, "", "proxy 应默认空串(直连)");
+    }
+
+    #[test]
+    fn api_proxy_round_trips_camel_case() {
+        let mut cfg = AppConfig::default();
+        cfg.api_config.proxy = "http://127.0.0.1:7890".into();
+        let json = serde_json::to_string(&cfg).unwrap();
+        // 序列化键须为 camelCase("proxy" 无多词,键名即 "proxy"),与前端 bindings.ts 对齐。
+        assert!(json.contains("\"proxy\":\"http://127.0.0.1:7890\""));
+        let back: AppConfig = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.api_config.proxy, "http://127.0.0.1:7890");
+    }
 
     #[test]
     fn missing_auto_check_update_defaults_true() {

@@ -7,7 +7,7 @@
   // api/exportDir 双向绑定到页面层 $state(切 tab 不丢,保存由页面按页保存负责);
   // showKey/testing 为本 tab 局部 UI 状态。
   let {
-    api = $bindable({ baseUrl: '', apiKey: '', model: '' }),
+    api = $bindable({ baseUrl: '', apiKey: '', model: '', proxy: '' }),
     exportDir = $bindable(''),
   }: {
     api?: ApiConfig;
@@ -68,6 +68,15 @@
       </button>
     </div>
   </label>
+  <label class="fld">
+    <span
+      >网络代理<HelpTip>
+        代理同时作用于 API 请求与检查更新/下载。支持 host:port（如 127.0.0.1:7890，按 HTTP
+        代理处理）或完整 http://… 地址；仅支持 HTTP(S) 代理，留空不代理。
+      </HelpTip></span
+    >
+    <input class="field" bind:value={api.proxy} placeholder="例如 127.0.0.1:7890（留空不代理）" />
+  </label>
   <div class="sec-actions">
     <button class="btn btn-ghost" onclick={test} disabled={testing}>
       {testing ? '测试中…' : '测试连接'}
@@ -99,6 +108,10 @@
   }
   .grid-2 .fld {
     margin-bottom: 0.9rem;
+  }
+  /* 字段标签行内的问号提示与标签文字留一点间距(.help 属 HelpTip 子组件,需 :global) */
+  .fld > span :global(.help) {
+    margin-left: 0.3rem;
   }
   .row-input {
     display: flex;

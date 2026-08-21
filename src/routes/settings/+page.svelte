@@ -48,7 +48,7 @@
   }
 
   // ---- 持久化字段($state 全部留在页面层:tab 组件随 {#if} 卸载,切 tab 后未保存的编辑不丢)----
-  let api = $state<ApiConfig>({ baseUrl: '', apiKey: '', model: '' });
+  let api = $state<ApiConfig>({ baseUrl: '', apiKey: '', model: '', proxy: '' });
   let template = $state(DEFAULT_PROMPT_TEMPLATE);
   // 周报双模板:每日摘要(map) + 整周汇总(reduce)。「自定义默认」随 PromptTab 维护。
   let weeklyMap = $state(DEFAULT_WEEKLY_MAP_TEMPLATE);

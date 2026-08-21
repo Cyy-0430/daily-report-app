@@ -431,6 +431,7 @@ mod tests {
                 base_url: "https://api.example.com/v1".into(),
                 api_key: "sk-xxx".into(),
                 model: "gpt-demo".into(),
+                proxy: "http://127.0.0.1:7890".into(),
             },
             prompt_template: "模板{{input}}".into(),
             custom_default_template: "默认".into(),
@@ -497,6 +498,7 @@ mod tests {
         assert_eq!(got.api_config.base_url, cfg.api_config.base_url);
         assert_eq!(got.api_config.api_key, cfg.api_config.api_key);
         assert_eq!(got.api_config.model, cfg.api_config.model);
+        assert_eq!(got.api_config.proxy, cfg.api_config.proxy);
         assert_eq!(got.prompt_template, cfg.prompt_template);
         assert_eq!(got.custom_default_template, cfg.custom_default_template);
         assert_eq!(got.export_dir, cfg.export_dir);
@@ -656,6 +658,7 @@ mod tests {
             base_url: "u".into(),
             api_key: "k".into(),
             model: "m".into(),
+            proxy: String::new(),
         };
         legacy.prompt_template = "t".into();
         legacy.export_dir = "e".into();
