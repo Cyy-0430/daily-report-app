@@ -178,3 +178,25 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 8: 主题导入导出 + 网络代理配置
+
+**Date**: 2026-08-21
+**Task**: 主题导入导出 + 网络代理配置
+**Branch**: `main`
+
+### Summary
+
+两个设置页功能:①主题导入导出——下拉行内导出 JSON 复制分享,ImportThemeDialog 弹窗粘贴导入(THEME_VAR_KEYS 白名单校验,新 UUID+dedupeName,立即启用),theme.ts 增 exportThemeJson/parseThemeJson 纯函数+单测;②网络代理——ApiConfig 新增 proxy 字段(serde default 无损升级,bindings 镜像),llm.rs build_client 单一出口(裸 host:port 补 http://,非法报错不静默直连),updater checkForUpdate/downloadAndInstall 全链传代理(含 UpdateDialog 下载)。规范沉淀:theming.md 分享 JSON 契约、新建 network-spec.md。版本保持 0.6.0。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `d88963e` | (see git log) |
+| `20dc86f` | (see git log) |
+
+### Status
+
+[OK] **Completed**
