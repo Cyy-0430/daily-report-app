@@ -1,0 +1,3 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/spec/frontend/theming.md", "reason": "校验导入导出未破坏主题系统双源互锁与单出口"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "校验弹窗状态归属与跨路由状态未违规"}
