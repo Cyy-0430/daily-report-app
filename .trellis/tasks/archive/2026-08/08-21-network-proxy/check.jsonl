@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/backend/storage-spec.md", "reason": "校验配置字段跨层同步与无损升级"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "校验 ApiTab 表单改动符合 settings 组件约定"}
