@@ -1,5 +1,6 @@
 <script lang="ts">
   import { get } from 'svelte/store';
+  import { writeText } from '@tauri-apps/plugin-clipboard-manager';
   import { saveConfig, type AppConfig, type CustomTheme } from '$lib/bindings';
   import { config, configLoaded, notify } from '$lib/store';
   import { theme } from '$lib/theme-state.svelte';
@@ -7,11 +8,14 @@
     THEME_VAR_GROUPS,
     applyTheme,
     dedupeName,
+    exportThemeJson,
     nextThemeName,
     resolveColors,
+    type ThemeColors,
   } from '$lib/theme';
   import HelpTip from './HelpTip.svelte';
   import ThemeDropdown from './ThemeDropdown.svelte';
+  import ImportThemeDialog from './ImportThemeDialog.svelte';
   import ColorPicker from '$lib/components/ColorPicker.svelte';
 
   /**
@@ -151,22 +155,72 @@
     }
     notify('ok', '已删除');
   }
+
+  /** 导出(下拉 ⤓):序列化为分享 JSON 并复制剪贴板;预设不可导出(下拉无该按钮)。 */
+  async function exportTheme(id: string) {
+    const t = get(config).themeConfig.custom.find((x) => x.id === id);
+    if (!t) return;
+    try {
+      await writeText(exportThemeJson(t));
+      notify('ok', `已复制「${t.name}」主题 JSON`);
+    } catch (e) {
+      notify('err', String(e));
+    }
+  }
+
+  // ---- 导入(弹窗) ----
+
+  let importOpen = $state(false);
+
+  /**
+   * 导入(弹窗回调):新 UUID + 名称取 JSON(重名 dedupeName 去重),入库并立即启用。
+   * 编排对齐 saveTheme,仅名称来源不同 —— 语义不同,并存不复用。
+   */
+  async function importTheme(p: { name: string; colors: ThemeColors }) {
+    const base = get(config);
+    const id = crypto.randomUUID();
+    const item: CustomTheme = {
+      id,
+      name: dedupeName(p.name, base.themeConfig.custom),
+      colors: p.colors, // 存原始色板(不补全):缺 key 由 resolveColors 兜底预设
+    };
+    const merged: AppConfig = {
+      ...base,
+      themeConfig: { activeId: id, custom: [...base.themeConfig.custom, item] },
+    };
+    try {
+      await saveConfig(merged);
+      config.set(merged);
+    } catch (e) {
+      notify('err', String(e));
+      return;
+    }
+    const colors = resolveColors(merged.themeConfig);
+    applyTheme(colors);
+    theme.preview = null;
+    theme.draft = { baseId: id, colors };
+    notify('ok', `已导入并启用「${item.name}」`);
+  }
 </script>
 
 <!-- 当前主题 -->
 <section class="panel sec">
-  <div class="sec-title">
-    当前主题
-    <HelpTip>
-      下拉选中即应用并保存(重启仍是它)。自定义主题悬停可重命名 ✎、删除
-      🗑;删除正在使用的主题会自动回到预设。
-    </HelpTip>
+  <div class="sec-title-row">
+    <div class="sec-title">
+      当前主题
+      <HelpTip>
+        下拉选中即应用并保存(重启仍是它)。自定义主题悬停可重命名 ✎、导出 ⤓(复制 JSON 分享)、删除
+        🗑;「导入主题」粘贴他人分享的 JSON 即新建并启用;删除正在使用的主题会自动回到预设。
+      </HelpTip>
+    </div>
+    <button class="btn btn-ghost btn-sm" onclick={() => (importOpen = true)}>导入主题</button>
   </div>
   <ThemeDropdown
     activeId={$config.themeConfig.activeId}
     custom={$config.themeConfig.custom}
     onselect={selectTheme}
     onrename={renameTheme}
+    onexport={exportTheme}
     ondel={deleteTheme}
   />
 </section>
@@ -222,6 +276,10 @@
     「保存」会把当前颜色存为新的自定义主题(自动命名)并立即启用,可在下拉中重命名;「预览」仅临时生效,不写入配置。
   </p>
 </section>
+
+{#if importOpen}
+  <ImportThemeDialog onimport={importTheme} onclose={() => (importOpen = false)} />
+{/if}
 
 <style>
   .var-row {

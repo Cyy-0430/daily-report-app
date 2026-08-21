@@ -145,3 +145,44 @@ export function dedupeName(name: string, custom: CustomTheme[]): string {
     if (!used.has(cand)) return cand;
   }
 }
+
+/**
+ * 导出为分享 JSON(紧凑):仅 name + colors 两个字段,id 不参与(导入方永远新造)。
+ * colors 只输出 THEME_VAR_KEYS 白名单内的键 —— 存储层可能有多余键,导出即规范化。
+ */
+export function exportThemeJson(theme: CustomTheme): string {
+  const colors: ThemeColors = {};
+  for (const key of THEME_VAR_KEYS) {
+    const v = theme.colors[key];
+    if (typeof v === 'string' && v) colors[key] = v;
+  }
+  return JSON.stringify({ name: theme.name, colors });
+}
+
+/**
+ * 解析分享 JSON,全量防御,任一不过 → null(错误提示留给 UI):
+ * 1. JSON.parse 失败;
+ * 2. name 非非空 string(空白视为空,不静默改名);
+ * 3. colors 非普通对象;
+ * 4. colors 按 THEME_VAR_KEYS 白名单 + hexToRgb 合法性逐 key 过滤,全非法(无任何合法色)。
+ * 返回 trim 后的 name 与过滤后的 colors;缺 key 不在此补全 —— resolveColors 已兜底回退预设。
+ */
+export function parseThemeJson(text: string): { name: string; colors: ThemeColors } | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return null;
+  }
+  if (typeof parsed !== 'object' || parsed === null) return null;
+  const { name, colors } = parsed as { name?: unknown; colors?: unknown };
+  if (typeof name !== 'string' || !name.trim()) return null;
+  if (typeof colors !== 'object' || colors === null || Array.isArray(colors)) return null;
+  const out: ThemeColors = {};
+  for (const key of THEME_VAR_KEYS) {
+    const v = (colors as Record<string, unknown>)[key];
+    if (typeof v === 'string' && hexToRgb(v) !== null) out[key] = v;
+  }
+  if (Object.keys(out).length === 0) return null;
+  return { name: name.trim(), colors: out };
+}

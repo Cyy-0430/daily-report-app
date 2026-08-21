@@ -11,14 +11,15 @@
   import { PRESET_NAME } from '$lib/theme';
 
   /**
-   * 主题下拉(设置页主题 tab 专用):预设行(不可改删)+ 自定义行(悬停 ✎/🗑、行内重命名)。
-   * 纯展示 + 回调:选中/重命名/删除的编排与持久化在 ThemeTab(回调 props 约定)。
+   * 主题下拉(设置页主题 tab 专用):预设行(不可改删)+ 自定义行(悬停 ✎/⤓/🗑、行内重命名)。
+   * 纯展示 + 回调:选中/重命名/导出/删除的编排与持久化在 ThemeTab(回调 props 约定)。
    */
   let {
     activeId,
     custom,
     onselect,
     onrename,
+    onexport,
     ondel,
   }: {
     /** 当前激活主题 id;'' = 预设「纸墨」。 */
@@ -28,6 +29,8 @@
     onselect: (id: string) => void;
     /** 重命名提交(trim 后空名不回调,保持原名由本组件处理)。 */
     onrename: (id: string, name: string) => void;
+    /** 导出:序列化为分享 JSON 并复制剪贴板(剪贴板调用在 ThemeTab)。 */
+    onexport: (id: string) => void;
     ondel: (id: string) => void;
   } = $props();
 
@@ -166,6 +169,26 @@
                 <svg viewBox="0 0 14 14" aria-hidden="true" width="13" height="13">
                   <path
                     d="M9.7 2.2l2.1 2.1M2 12l1-3.5 6.7-6.7 2.5 2.5-6.7 6.7L2 12z"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.2"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+              </button>
+              <button
+                type="button"
+                class="act"
+                title="导出"
+                aria-label="导出 {t.name}"
+                onclick={(e) => {
+                  e.stopPropagation();
+                  onexport(t.id);
+                }}
+              >
+                <svg viewBox="0 0 14 14" aria-hidden="true" width="13" height="13">
+                  <path
+                    d="M5.2 5.2V3h6v6H9M3 5.2h6v6H3z"
                     fill="none"
                     stroke="currentColor"
                     stroke-width="1.2"

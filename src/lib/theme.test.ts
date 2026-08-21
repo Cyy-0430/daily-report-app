@@ -7,6 +7,8 @@ import {
   rgbToHex,
   nextThemeName,
   dedupeName,
+  exportThemeJson,
+  parseThemeJson,
   PRESET_ID,
 } from './theme';
 import type { CustomTheme } from './bindings';
@@ -102,5 +104,58 @@ describe('dedupeName', () => {
     expect(dedupeName('夜色', list)).toBe('夜色 (2)');
     const two = [...list, mkTheme('b', '夜色 (2)', {})];
     expect(dedupeName('夜色', two)).toBe('夜色 (3)');
+  });
+});
+
+describe('exportThemeJson', () => {
+  it('输出可被 JSON.parse,仅含 name / colors 两个字段', () => {
+    const t = mkTheme('a', '夜读', { paper: '#101010', ink: '#f0eae0' });
+    const parsed = JSON.parse(exportThemeJson(t)) as Record<string, unknown>;
+    expect(Object.keys(parsed).sort()).toEqual(['colors', 'name']);
+    expect(parsed.name).toBe('夜读');
+    expect(parsed.colors).toEqual({ paper: '#101010', ink: '#f0eae0' });
+  });
+
+  it('colors 只输出 THEME_VAR_KEYS 白名单内的键(多余键剔除,缺键不补)', () => {
+    const t = mkTheme('a', 'X', { paper: '#101010', bogus: '#ff0000' });
+    const parsed = JSON.parse(exportThemeJson(t)) as { colors: Record<string, string> };
+    expect(parsed.colors).toEqual({ paper: '#101010' });
+  });
+
+  it('导出 → parseThemeJson 往返一致(名称、色板原样)', () => {
+    const t = mkTheme('a', '夜读', { ...EDITORIAL_PAPER });
+    expect(parseThemeJson(exportThemeJson(t))).toEqual({ name: '夜读', colors: EDITORIAL_PAPER });
+  });
+});
+
+describe('parseThemeJson', () => {
+  it('合法 JSON → { name, colors };多余 key 被忽略,非法 hex 被剔除', () => {
+    const ok = '{"name":"夜读","colors":{"paper":"#101010","ink":"#f0eae0"}}';
+    expect(parseThemeJson(ok)).toEqual({
+      name: '夜读',
+      colors: { paper: '#101010', ink: '#f0eae0' },
+    });
+    const dirty =
+      '{"name":"A","colors":{"paper":"#101010","bogus":"#ff0000","ink":"notahex","ink-soft":123}}';
+    expect(parseThemeJson(dirty)).toEqual({ name: 'A', colors: { paper: '#101010' } });
+  });
+
+  it('3 位 hex 合法;name 前后空白被 trim;整体前后空白容忍', () => {
+    expect(parseThemeJson('  {"name":" A ","colors":{"paper":"#fff"}}  ')).toEqual({
+      name: 'A',
+      colors: { paper: '#fff' },
+    });
+  });
+
+  it('非法输入一律 null:非 JSON / name 空、空白、缺失、非 string / colors 缺失、非对象、数组 / 全非法色', () => {
+    expect(parseThemeJson('not json')).toBeNull();
+    expect(parseThemeJson('{"name":"","colors":{"paper":"#101010"}}')).toBeNull();
+    expect(parseThemeJson('{"name":"   ","colors":{"paper":"#101010"}}')).toBeNull();
+    expect(parseThemeJson('{"colors":{"paper":"#101010"}}')).toBeNull();
+    expect(parseThemeJson('{"name":123,"colors":{"paper":"#101010"}}')).toBeNull();
+    expect(parseThemeJson('{"name":"A"}')).toBeNull();
+    expect(parseThemeJson('{"name":"A","colors":"nope"}')).toBeNull();
+    expect(parseThemeJson('{"name":"A","colors":[1,2]}')).toBeNull();
+    expect(parseThemeJson('{"name":"A","colors":{"paper":"zzz","ink":"#12345"}}')).toBeNull();
   });
 });
