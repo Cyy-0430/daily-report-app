@@ -53,6 +53,29 @@ impl Default for CollectConfig {
     }
 }
 
+/// 单个自定义主题。colors 键 = 变量名(不带 --,如 "paper"),值 = "#rrggbb";
+/// 缺 key 由前端逐项回退预设,多余 key 由前端忽略。
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct CustomTheme {
+    #[serde(default)]
+    pub id: String,
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub colors: HashMap<String, String>,
+}
+
+/// 主题配置:activeId 指向 custom 中的主题 id;空串或未命中 → 预设 "Editorial Paper"。
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ThemeConfig {
+    #[serde(default)]
+    pub active_id: String,
+    #[serde(default)]
+    pub custom: Vec<CustomTheme>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HistoryItem {
@@ -93,6 +116,9 @@ pub struct AppConfig {
     /// 是否在启动时自动检查更新;默认 true。旧配置缺失该字段时回填 true。
     #[serde(default = "default_true")]
     pub auto_check_update: bool,
+    /// 主题配置(预设 + 自定义主题)。旧配置缺失该字段时回退空 = 预设 Editorial Paper。
+    #[serde(default)]
+    pub theme_config: ThemeConfig,
 }
 
 /// `#[serde(default)]` 回退值:布尔默认 true(用于 auto_check_update)。
@@ -143,5 +169,47 @@ mod tests {
         assert!(!back.auto_check_update);
         // 序列化键须为 camelCase,与前端对齐。
         assert!(json.contains("\"autoCheckUpdate\":false"));
+    }
+
+    #[test]
+    fn missing_theme_config_defaults_empty() {
+        // 旧配置 JSON 缺 themeConfig 字段时,反序列化必须回退空配置(= 预设,无损升级)。
+        let legacy = r#"{
+            "apiConfig": { "baseUrl": "", "apiKey": "", "model": "" },
+            "autoCheckUpdate": true
+        }"#;
+        let cfg: AppConfig = serde_json::from_str(legacy).expect("parse legacy config");
+        assert_eq!(cfg.theme_config.active_id, "");
+        assert!(cfg.theme_config.custom.is_empty());
+    }
+
+    #[test]
+    fn theme_config_round_trips_camel_case() {
+        let mut cfg = AppConfig::default();
+        cfg.theme_config = ThemeConfig {
+            active_id: "t-1".into(),
+            custom: vec![CustomTheme {
+                id: "t-1".into(),
+                name: "自定义主题 1".into(),
+                colors: {
+                    let mut m = HashMap::new();
+                    m.insert("paper".into(), "#101010".into());
+                    m
+                },
+            }],
+        };
+        let json = serde_json::to_string(&cfg).unwrap();
+        // 序列化键须为 camelCase,与前端 bindings.ts 对齐。
+        assert!(json.contains("\"themeConfig\""));
+        assert!(json.contains("\"activeId\":\"t-1\""));
+        assert!(json.contains("\"custom\":[{"));
+        let back: AppConfig = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.theme_config.active_id, "t-1");
+        assert_eq!(back.theme_config.custom.len(), 1);
+        assert_eq!(back.theme_config.custom[0].name, "自定义主题 1");
+        assert_eq!(
+            back.theme_config.custom[0].colors.get("paper").unwrap(),
+            "#101010"
+        );
     }
 }

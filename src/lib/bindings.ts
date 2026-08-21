@@ -26,6 +26,19 @@ export interface HistoryItem {
   createdAt: number;
 }
 
+/** 单个自定义主题。colors 键 = 变量名(不带 --,如 "paper"),值 = "#rrggbb"。 */
+export interface CustomTheme {
+  id: string;
+  name: string;
+  colors: Record<string, string>;
+}
+
+/** 主题配置:activeId 指向 custom 中的主题 id;空串或未命中 → 预设「纸墨」。 */
+export interface ThemeConfig {
+  activeId: string;
+  custom: CustomTheme[];
+}
+
 /** 应用配置(历史记录已独立存于 SQLite,见 listHistory/addHistory/removeHistory)。 */
 export interface AppConfig {
   apiConfig: ApiConfig;
@@ -43,6 +56,8 @@ export interface AppConfig {
   collectConfig: CollectConfig;
   /** 启动时是否自动检查更新(默认 true)。 */
   autoCheckUpdate: boolean;
+  /** 主题配置(预设 + 自定义主题);空 activeId + 空 custom = 预设「纸墨」。 */
+  themeConfig: ThemeConfig;
 }
 
 export type StreamChunk =
@@ -143,6 +158,7 @@ export function emptyConfig(): AppConfig {
       toolPaths: {},
     },
     autoCheckUpdate: true,
+    themeConfig: { activeId: '', custom: [] },
   };
 }
 

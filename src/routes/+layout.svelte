@@ -5,6 +5,7 @@
   import { page } from '$app/stores';
   import { getCurrentWindow } from '@tauri-apps/api/window';
   import { initConfig, config, toast } from '$lib/store';
+  import { applyTheme, resolveColors } from '$lib/theme';
   import { checkForUpdate, openUpdateDialog } from '$lib/updater';
   import UpdateDialog from '$lib/components/UpdateDialog.svelte';
 
@@ -22,6 +23,8 @@
     // 应用已挂载,移除 app.html 的内联启动闪屏(消除白屏用,见 app.html 注释)。
     document.getElementById('app-splash')?.remove();
     await initConfig();
+    // 配置加载后应用激活主题(无自定义主题时 = 预设,首帧本就由 :root 保证,无闪变)。
+    applyTheme(resolveColors(get(config).themeConfig));
     // 配置加载完成后,若开启自动检查,静默检查一次(失败/无更新均不打扰)。
     if (get(config).autoCheckUpdate) {
       try {

@@ -1,6 +1,8 @@
 @import 'tailwindcss';
 
 :root {
+  /* 以下 10 个颜色变量与 src/lib/theme.ts 的 EDITORIAL_PAPER 逐一对应:
+     改任一侧必须同步另一侧。此处仅负责首帧底色,运行时以 theme.ts 的 applyTheme 为唯一出口。 */
   --paper: #f3eee3;
   --paper-card: #fffdf7;
   --ink: #1f1c18;

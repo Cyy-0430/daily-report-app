@@ -10,7 +10,7 @@ use rusqlite::{params, Connection, OptionalExtension};
 use serde::Deserialize;
 use tauri::{AppHandle, Manager};
 
-use crate::config::{ApiConfig, AppConfig, CollectConfig, HistoryItem};
+use crate::config::{ApiConfig, AppConfig, CollectConfig, HistoryItem, ThemeConfig};
 
 // ===========================================================================
 // 持久化键与哨兵值(单一来源:get_config / config_pairs / 迁移共用,杜绝镜像漂移)
@@ -27,6 +27,7 @@ const KEY_WEEKLY_DEFAULT_REDUCE_TEMPLATE: &str = "weekly_default_reduce_template
 const KEY_EXPORT_DIR: &str = "export_dir";
 const KEY_COLLECT_CONFIG: &str = "collect_config";
 const KEY_AUTO_CHECK_UPDATE: &str = "auto_check_update";
+const KEY_THEME_CONFIG: &str = "theme_config";
 
 /// `meta` 表键 + 哨兵值。`META_MIGRATED_FROM_STORE` 由 lib.rs 迁移触发点共用,故 pub(crate)。
 const META_SCHEMA_VERSION: &str = "schema_version";
@@ -136,6 +137,9 @@ pub fn get_config(conn: &Connection) -> Result<AppConfig, String> {
     if let Some(v) = get_kv(conn, KEY_AUTO_CHECK_UPDATE)? {
         cfg.auto_check_update = serde_json::from_str(&v).map_err(|e| e.to_string())?;
     }
+    if let Some(v) = get_kv(conn, KEY_THEME_CONFIG)? {
+        cfg.theme_config = serde_json::from_str(&v).map_err(|e| e.to_string())?;
+    }
     Ok(cfg)
 }
 
@@ -191,6 +195,10 @@ fn config_pairs(cfg: &AppConfig) -> Result<Vec<(&'static str, String)>, String> 
         (
             KEY_AUTO_CHECK_UPDATE,
             serde_json::to_string(&cfg.auto_check_update).map_err(|e| e.to_string())?,
+        ),
+        (
+            KEY_THEME_CONFIG,
+            serde_json::to_string(&cfg.theme_config).map_err(|e| e.to_string())?,
         ),
     ])
 }
@@ -355,6 +363,7 @@ pub fn migrate_from_store(
             export_dir: leg.export_dir,
             collect_config: leg.collect_config,
             auto_check_update: true,
+            theme_config: ThemeConfig::default(), // 旧 store 无主题数据,迁移走默认(= 预设)
         };
         upsert_config(&tx, &cfg)?;
     }
@@ -395,7 +404,7 @@ pub fn remove_history(app: AppHandle, id: String) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::{ApiConfig, CollectConfig};
+    use crate::config::{ApiConfig, CollectConfig, CustomTheme};
     use rusqlite::Connection;
 
     /// 新建内存库并初始化 schema。
@@ -437,6 +446,19 @@ mod tests {
                 tool_paths: Default::default(),
             },
             auto_check_update: true,
+            theme_config: ThemeConfig {
+                active_id: "t-demo".into(),
+                custom: vec![CustomTheme {
+                    id: "t-demo".into(),
+                    name: "自定义主题 1".into(),
+                    colors: {
+                        let mut m = std::collections::HashMap::new();
+                        m.insert("paper".into(), "#101010".into());
+                        m.insert("accent".into(), "#ff8800".into());
+                        m
+                    },
+                }],
+            },
         }
     }
 
@@ -491,6 +513,31 @@ mod tests {
             cfg.collect_config.exclude_paths
         );
         assert_eq!(got.auto_check_update, cfg.auto_check_update);
+        // 主题配置 round-trip
+        assert_eq!(got.theme_config.active_id, cfg.theme_config.active_id);
+        assert_eq!(got.theme_config.custom.len(), cfg.theme_config.custom.len());
+        assert_eq!(got.theme_config.custom[0].id, "t-demo");
+        assert_eq!(got.theme_config.custom[0].name, "自定义主题 1");
+        assert_eq!(
+            got.theme_config.custom[0].colors.get("accent").unwrap(),
+            "#ff8800"
+        );
+    }
+
+    #[test]
+    fn config_theme_config_defaults_when_key_missing() {
+        // 旧 KV 集(无 theme_config key)读出 = 默认(= 预设,无损升级)。
+        let conn = mem_db();
+        // 只写旧键,模拟升级前存量库。
+        conn.execute(
+            "INSERT OR REPLACE INTO config(key, value) VALUES(?1, ?2)",
+            params![KEY_EXPORT_DIR, "\"D:\\\\export\""],
+        )
+        .unwrap();
+        let got = get_config(&conn).unwrap();
+        assert_eq!(got.export_dir, "D:\\export"); // 其余键正常读取
+        assert_eq!(got.theme_config.active_id, "");
+        assert!(got.theme_config.custom.is_empty());
     }
 
     #[test]

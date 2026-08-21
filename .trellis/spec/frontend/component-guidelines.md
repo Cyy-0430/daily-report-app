@@ -125,3 +125,23 @@ function selectTab(id: SettingsTab) {
 ```
 
 要点:`in`/`out` 的 x 严格相反;保留 fly 默认 opacity 交叉淡化(两张不透明卡片直接叠会穿帮);sticky 头部与页脚不参与过渡。
+
+### Pattern: 第三方组件包装层(范例 ColorPicker.svelte → svelte-awesome-color-picker)
+
+**What**(沉淀自 08-20 主题任务):引入第三方 UI 组件时不直接在业务组件里裸用,而是包一层薄 wrapper,**对外契约( props/回调)保持与旧自研实现完全不变**,业务调用点零改动;wrapper 内做三件事:
+
+1. **令牌映射**:库的样式变量(如 `--cp-*`)在包装层 scoped CSS 里映射到本项目令牌,**必须 `var(--…)` 引用而非写死色值**——令牌运行时可变(见 theming.md),写死即脱离主题系统
+2. **值归一**:库输出可能超出业务契约(如 hex 带 alpha 段),在 wrapper 归一后对外(本项目统一 `#rrggbb`)
+3. **受控同步**:外部 value 变化(单项重置等)经 `$effect` 推入库组件;用**非响应式 `lastOut`** 记录最近对外发出/外部推入值,阻断「库归一化回写 → 再对外」「外部推入 → 库 onInput 回声」两类回环
+
+**Why**:依赖可替换(换库只动 wrapper)、业务面零波及、主题一致性由映射保证。
+
+### Common Mistake: svelte-awesome-color-picker 的 horizontal 模式把取色面和色相条排成一行
+
+**Symptom**:`sliderDirection="horizontal"` 下弹层里 SV 面与色相条左右并排,弹层被撑到约 450px 宽。
+
+**Cause**:库在 horizontal 模式下两个选择器均为 inline 级盒子(`inline-block`/`inline-flex`),弹层容器 `width: max-content` 单行最大化,默认流式布局未做堆叠。
+
+**Fix**:包装层覆盖为块级——`:global(div.picker) { display: block }`、`:global(div.h) { display: flex }`。
+
+**Prevention**:包装库组件时先在 dev 里过一遍全部模式开关;布局不对先查库的 display/容器约束,再写覆盖。

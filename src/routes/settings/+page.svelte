@@ -20,14 +20,17 @@
   import PromptTab from '$lib/components/settings/PromptTab.svelte';
   import CollectTab from '$lib/components/settings/CollectTab.svelte';
   import AboutTab from '$lib/components/settings/AboutTab.svelte';
+  // 主题 tab 的状态在模块层(theme-state.svelte.ts),不经页面转 hand —— 状态本就要跨路由存活。
+  import ThemeTab from '$lib/components/settings/ThemeTab.svelte';
   // 跨 tab 共享的设置页样式(.sec/.fld/.var 等);导入一次全局生效,仅设置页使用。
   import '$lib/components/settings/settings-shared.css';
 
-  type SettingsTab = 'api' | 'prompt' | 'collect' | 'about';
+  type SettingsTab = 'api' | 'prompt' | 'collect' | 'theme' | 'about';
   const SETTINGS_TABS: { id: SettingsTab; label: string }[] = [
     { id: 'api', label: 'API' },
     { id: 'prompt', label: '提示词' },
     { id: 'collect', label: '采集' },
+    { id: 'theme', label: '主题' },
     { id: 'about', label: '关于' },
   ];
 
@@ -163,6 +166,7 @@
     if (activeTab === 'api') return saveApi();
     if (activeTab === 'prompt') return savePrompt();
     if (activeTab === 'about') return saveAbout();
+    if (activeTab === 'theme') return; // 主题 tab 全部即时持久化(见 ThemeTab),无整页保存
     return saveCollect();
   }
 
@@ -214,6 +218,8 @@
               bind:toolPaths
               {defaultPaths}
             />
+          {:else if activeTab === 'theme'}
+            <ThemeTab />
           {:else if activeTab === 'about'}
             <AboutTab bind:autoCheckUpdate />
           {/if}
@@ -221,11 +227,14 @@
       {/key}
     </div>
 
-    <div class="page-foot">
-      <button class="btn btn-primary save-btn" onclick={saveActive} disabled={saving}>
-        {saving ? '保存中…' : `保存${activeTabLabel}`}
-      </button>
-    </div>
+    <!-- 主题 tab 的保存动作随 ThemeTab 内各操作即时完成,不显示整页保存按钮 -->
+    {#if activeTab !== 'theme'}
+      <div class="page-foot">
+        <button class="btn btn-primary save-btn" onclick={saveActive} disabled={saving}>
+          {saving ? '保存中…' : `保存${activeTabLabel}`}
+        </button>
+      </div>
+    {/if}
   </div>
 </div>
 
